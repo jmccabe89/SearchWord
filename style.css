@@ -112,6 +112,11 @@ body {
     text-overflow: ellipsis;
     padding-bottom: 0px;
 }
+@font-face {
+  font-family: Impacto;
+  font-weight: bold;
+  src: url(data:font/ttf;base64,AAEAAAAXAQ...);
+}
 
 #hamburger-menu {
     position: absolute;
