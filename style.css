@@ -846,7 +846,7 @@ input:checked + .slider:before { transform: translateX(26px); }
     .grid-panel-wrapper {
         width: 100%;
         flex-grow: 1;
-        flex-basis: 60%; /* Give the grid a larger portion of the space */
+        flex-basis: 50%; /* Give the grid a larger portion of the space */
         min-height: 200px; /* Ensure it doesn't get too small */
     }
 
@@ -859,7 +859,7 @@ input:checked + .slider:before { transform: translateX(26px); }
     .side-panel {
         width: 100%;
         flex-grow: 1;
-        flex-basis: 40%; /* Take up the remaining space */
+        flex-basis: 50%; /* Take up the remaining space */
         min-height: 0; /* CRITICAL: Allows the panel to shrink and enable internal scrolling */
         padding: 10px;
     }
