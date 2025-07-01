@@ -104,7 +104,7 @@ body {
 }
 
 .header-panel h1 {
-    font-family: 'Impact';
+    font-family: Impacto, Impact, sans-serif;
     font-weight: normal;
     font-size: 2em;
     white-space: nowrap;
