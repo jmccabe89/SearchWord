@@ -1,0 +1,936 @@
+/* Universal Box-Sizing and Font Imports */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Define CSS Variables for Dark Theme (Default) */
+:root {
+    --bg-color: #121212;
+    --text-color: #f5f5f5;
+    --container-bg: #121212;
+    --header-bg: #1a1a1a;
+    --border-color: #333333;
+    --icon-color: #f5f5f5;
+    --icon-hover-color: #cccccc;
+    --accent-color: #5DA3EF; /* Blue accent */
+    --accent-hover-color: #68B2FF;
+    --accent-active-color: #7AA0E1;
+    --grid-gap-bg: #1c1c1c;
+    --cell-bg: #242424;
+    --cell-hover-bg: #383838;
+    --list-bg: #0d0d0d;
+    --list-item-border: #282828;
+    --list-item-hover-bg: #282828;
+    --current-word-display-bg: #242424;
+    --modal-bg: #1a1a1a;
+    --modal-text-dim: #b0b0b0;
+    --switch-bg: #444;
+    --switch-thumb: white;
+    --vignette-shadow: inset 0 0 20px 10px #294563;
+    --danger-color: #dc3545; /* Red for destructive actions */
+    --danger-hover-color: #c82333;
+}
+
+/* Light Mode Variables */
+body.light-mode {
+    --bg-color: #f0f0f0; /* Light background */
+    --text-color: #222; /* Dark text */
+    --container-bg: #ffffff; /* White for container */
+    --header-bg: #e0e0e0; /* Light header */
+    --border-color: #bbbbbb; /* Lighter border */
+    --icon-color: #555555;
+    --icon-hover-color: #333333;
+    --accent-color: #3f7bbf; /* Slightly darker blue accent for contrast */
+    --accent-hover-color: #4f8bc9;
+    --accent-active-color: #2e6aae;
+    --grid-gap-bg: #e5e5e5;
+    --cell-bg: #f8f8f8;
+    --cell-hover-bg: #e0e0e0;
+    --list-bg: #ffffff;
+    --list-item-border: #dddddd;
+    --list-item-hover-bg: #f0f0f0;
+    --current-word-display-bg: #ffffff;
+    --modal-bg: #f1f1f1;
+    --modal-text-dim: #666666;
+    --switch-bg: #cccccc;
+    --switch-thumb: #555555;
+    --vignette-shadow: inset 0 0 20px 10px rgba(100, 150, 200, 0.3); /* Lighter vignette */
+    --danger-color: #c82333;
+    --danger-hover-color: #a71d2a;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    user-select: none;
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition for theme change */
+}
+
+/* --- Game Container Layout - Fullscreen --- */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+    background-color: var(--container-bg);
+    transition: background-color 0.3s ease;
+}
+
+/* --- Header Panel --- */
+.header-panel {
+    background-color: var(--header-bg);
+    color: var(--text-color);
+    padding: 10px 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    flex-shrink: 0;
+    border-bottom: 2px solid var(--border-color);
+    position: relative;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.header-panel h1 {
+    font-family: 'Impact';
+    font-weight: normal;
+    font-size: 2em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-bottom: 0px;
+}
+
+#hamburger-menu {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    color: var(--icon-color);
+    font-size: 2em;
+    cursor: pointer;
+    padding: 5px;
+    transition: color 0.2s ease, transform 0.1s ease;
+    flex-shrink: 0;
+}
+
+.icon-button:hover {
+    color: var(--icon-hover-color);
+    transform: scale(1.1);
+}
+
+/* Override hover for the hamburger menu to combine transforms */
+#hamburger-menu:hover {
+    transform: translateY(-50%) scale(1.1);
+}
+
+.header-stats {
+    display: flex;
+    gap: 20px;
+    font-size: 1em;
+    justify-content: center;
+    padding: 15px 0;
+    border-top: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
+}
+
+.stat-item span {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+/* --- Main Content Layout (Grid + Side Panel) --- */
+.main-content {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    gap: 15px;
+    padding: 15px;
+    transition: background-color 0.3s ease;
+}
+
+/* --- Grid Panel Wrapper (for static border and vignette) --- */
+.grid-panel-wrapper {
+    flex-basis: 75%;
+    flex-grow: 1;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Vignette effect on the static wrapper */
+.grid-panel-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    box-shadow: var(--vignette-shadow);
+    border: 2px solid var(--border-color);
+    border-radius: inherit;
+    pointer-events: none;
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* --- Grid Panel (The actual scrollable container) --- */
+#grid-panel {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Hide scrollbars for WebKit browsers (Chrome, Safari) */
+#grid-panel::-webkit-scrollbar {
+    display: none;
+}
+
+
+/* --- Game Grid (Actual cells container) --- */
+#game-grid {
+    display: grid;
+    border: none;
+    gap: 2px;
+    background-color: var(--grid-gap-bg);
+    cursor: grab;
+    transition: background-color 0.3s ease;
+}
+
+/* Animation for the initial grid load */
+#game-grid.initial-zoom {
+    animation: initial-grid-zoom 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+#game-grid.grabbing {
+    cursor: grabbing;
+}
+
+/* --- Grid Cells --- */
+.grid-cell {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--cell-bg);
+    color: var(--text-color);
+    font-weight: normal;
+    text-transform: uppercase;
+    transition: background-color 0.1s ease, color 0.1s ease, box-shadow 0.1s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.grid-cell:hover {
+    background-color: var(--cell-hover-bg);
+}
+
+.grid-cell.selected {
+    background-color: var(--accent-color);
+    color: var(--container-bg); /* Darker text on accent background */
+    box-shadow: none;
+    color: var(--container-bg);
+    /* This shadow bleeds 1px into the gap, effectively connecting adjacent selected cells. */
+    box-shadow: 0 0 0 1px var(--accent-color);
+    position: relative; /* Required for z-index to work */
+    z-index: 1; /* Ensures the shadow renders on top of the grid-gap background */
+}
+
+/* --- Side Panel --- */
+.side-panel {
+    flex-basis: 25%;
+    flex-shrink: 0;
+    background-color: var(--header-bg);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* --- Ad Container Styling --- */
+.ad-container {
+    margin-top: auto; /* Pushes the ad to the bottom of the side panel */
+    padding-top: 15px;
+    text-align: center;
+    min-height: 0px; /* Reserve some space */
+}
+
+/*
+ * This rule ensures that if Google AdSense doesn't serve an ad,
+ * the container collapses to avoid wasting space. It targets containers
+ * that are either empty or contain an ad unit marked as 'unfilled'.
+*/
+.ad-container:empty,
+.ad-container:has(ins.adsbygoogle[data-ad-status="unfilled"]) {
+    display: none;
+}
+
+.side-panel h2 {
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    color: var(--text-color);
+    text-align: center;
+}
+
+.found-words-section {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.word-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 20px;
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    background-color: var(--list-bg);
+    border-radius: 4px;
+    transition: max-height 0.3s ease-out, padding 0.3s ease-out, opacity 0.3s ease-out, border-width 0.1s ease-out, margin-bottom 0.3s ease-out, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.word-list li {
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--list-item-border);
+    font-size: 1.2em;
+    color: var(--text-color);
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.word-list li:last-child {
+    border-bottom: none;
+}
+
+.word-list li:hover {
+    background-color: var(--list-item-hover-bg);
+}
+
+/* Custom Scrollbar for Word List */
+.word-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--list-bg);
+}
+
+.word-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.word-list::-webkit-scrollbar-track {
+    background: var(--list-bg);
+}
+
+.word-list::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+.current-word-section {
+    margin-top: auto;
+    text-align: center;
+    padding-top: 0px;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
+}
+
+.current-word-section h3 {
+    font-size: 1.1em;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+.word-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.current-word-display {
+    background-color: var(--current-word-display-bg);
+    border: 2px solid var(--accent-color);
+    padding: 10px;
+    min-height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.6em;
+    border-radius: 6px;
+    color: var(--text-color);
+    overflow-x: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.verify-button {
+    background-color: var(--accent-color);
+    color: var(--container-bg);
+    border: none;
+    padding: 14px 20px;
+    font-size: 1.1em;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease, color 0.3s ease;
+    flex-shrink: 0;
+}
+
+.verify-button:hover {
+    background-color: var(--accent-hover-color);
+    transform: translateY(-3px);
+}
+
+.verify-button:active {
+    background-color: var(--accent-active-color);
+    transform: translateY(0);
+}
+
+.verify-button:disabled {
+    background-color: #444; /* Keep dark regardless of theme for disabled */
+    color: #bbb;
+    cursor: not-allowed;
+    opacity: 0.7;
+    transform: none;
+}
+
+/* --- Shake Animation --- */
+.shake {
+    animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+@keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+    50% { transform: translate3d(-4px, 0, 0); }
+}
+
+/* Keyframe animation for the initial grid zoom effect */
+@keyframes initial-grid-zoom {
+    from {
+        transform: scale(0.85);
+    }
+    to {
+        transform: scale(1);
+    }
+}
+
+/* --- Menu Panel (Off-canvas) --- */
+.menu-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    width: 280px;
+    height: 100%;
+    background-color: var(--header-bg); /* Use header-bg for menu */
+    transition: transform 0.3s ease-out, background-color 0.3s ease;
+    z-index: 1000;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    will-change: transform;
+}
+
+.menu-panel.open {
+    transform: translateX(0);
+}
+
+.close-menu {
+    align-self: flex-end;
+    font-size: 2.5em;
+    color: var(--icon-color);
+    transition: color 0.3s ease;
+}
+
+.menu-panel nav ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 30px;
+}
+
+.menu-panel nav li {
+    margin-bottom: 15px;
+}
+
+.menu-panel nav a {
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 1.2em;
+    display: block;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.menu-panel nav a:hover {
+    background-color: var(--list-item-hover-bg);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+/* --- Modal Overlay --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85); /* Keep opaque for visibility */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Prevent body scrolling when menu or modal is open */
+body.menu-open, body.modal-open {
+    overflow: hidden;
+}
+
+/* --- Stats Modal --- */
+.modal {
+    background-color: var(--modal-bg);
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 450px;
+    width: 90%;
+    text-align: center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+    border: 2px solid var(--border-color);
+}
+
+.modal.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.close-modal {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 2.2em;
+    color: var(--icon-color);
+    transition: color 0.3s ease;
+}
+
+.modal h2 {
+    color: var(--accent-hover-color); /* Lighter accent for modal heading */
+    margin-bottom: 20px;
+    font-size: 1.6em;
+    transition: color 0.3s ease;
+}
+
+.modal p {
+    font-size: 1.1em;
+    margin-bottom: 10px;
+    color: var(--modal-text-dim);
+    transition: color 0.3s ease;
+}
+
+.modal h3 {
+    border-top: 1px solid var(--border-color);
+    margin-bottom: 10px;
+    padding-top: 20px;
+    transition: border-color 0.3s ease;
+}
+
+.modal p span {
+    color: var(--accent-color);
+    transition: color 0.3s ease;
+}
+
+.longest-word {
+    font-size: 1.4em !important;
+    color: var(--accent-color);
+    margin-top: 15px;
+    border-top: 0px solid var(--border-color);
+    padding-top: 10px;
+}
+
+/* --- Definition Modal --- */
+.definition-phonetic {
+    font-style: italic;
+    color: var(--modal-text-dim);
+    margin-bottom: 20px;
+    font-size: 1.1em;
+    transition: color 0.3s ease;
+}
+
+.definition-meanings {
+    text-align: left;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 15px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 15px;
+    padding-top: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--modal-bg);
+    transition: border-color 0.3s ease, scrollbar-color 0.3s ease;
+}
+
+.definition-meanings::-webkit-scrollbar {
+    width: 8px;
+}
+
+.definition-meanings::-webkit-scrollbar-track {
+    background: var(--modal-bg);
+}
+
+.definition-meanings::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+.definition-meanings.loading::after {
+    content: 'Loading...';
+    display: block;
+    text-align: center;
+    font-size: 1.2em;
+    color: var(--modal-text-dim);
+    margin-top: 20px;
+}
+
+.meaning-block {
+    margin-bottom: 20px;
+}
+
+.part-of-speech {
+    font-weight: bold;
+    font-size: 1.2em;
+    color: var(--accent-hover-color);
+    margin-bottom: 10px;
+    text-transform: capitalize;
+    transition: color 0.3s ease;
+}
+
+.definition-item {
+    margin-bottom: 15px;
+}
+
+.definition-example {
+    font-style: italic;
+    color: var(--modal-text-dim); /* Use dim text for examples */
+    margin-top: 5px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border-color); /* Use border color */
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+/* --- Share Modal --- */
+.share-text-preview {
+    background-color: var(--current-word-display-bg); /* Reusing a variable */
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+    font-style: italic;
+    color: var(--modal-text-dim);
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.share-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+
+.share-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #ffffff; /* Keep white for social buttons */
+    font-weight: bold;
+    font-size: 1.1em;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.share-button:hover {
+    opacity: 0.85;
+}
+
+.share-icon {
+    width: 1.2em;
+    height: 1.2em;
+    fill: currentColor;
+}
+
+.x-button { background-color: #000000; } /* X's branding is black */
+.facebook-button { background-color: #1877F2; }
+.copy-button { background-color: #6c757d; }
+
+/* --- Danger Zone in Settings --- */
+.danger-zone {
+    margin-top: 20px;
+    padding: 20px 5px;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.3s ease;
+}
+
+.danger-zone p {
+    font-size: 0.9em;
+    color: var(--modal-text-dim);
+    margin-bottom: 0;
+}
+
+.danger-button {
+    background-color: var(--danger-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s ease;
+    align-self: center;
+}
+
+.danger-button:hover {
+    background-color: var(--danger-hover-color);
+}
+
+/* --- Settings Modal & Toggle Switch --- */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 5px;
+    border-bottom: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
+}
+
+.setting-item:last-child {
+    border-bottom: none;
+}
+
+.setting-item label {
+    font-size: 1.1em;
+    color: var(--text-color);
+    transition: color 0.3s ease;
+}
+
+/* The switch - a wrapper for the checkbox */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+/* Hide default HTML checkbox */
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* The slider */
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--switch-bg);
+    transition: .4s, background-color 0.3s ease;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px; width: 26px;
+    left: 4px; bottom: 4px;
+    background-color: var(--switch-thumb);
+    transition: .4s, background-color 0.3s ease;
+}
+
+input:checked + .slider { background-color: var(--accent-color); }
+input:focus + .slider { box-shadow: 0 0 1px var(--accent-color); }
+input:checked + .slider:before { transform: translateX(26px); }
+
+/* Rounded sliders */
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+    .game-container {
+        flex-direction: column;
+    }
+
+    .header-panel {
+        padding: 10px;
+    }
+
+    .header-panel h1 {
+        font-size: 1.5em;
+    }
+
+    .header-stats {
+        font-size: 1.1em;
+        gap: 15px;
+        padding: 10px 0;
+    }
+
+    .main-content {
+        flex-direction: column;
+        overflow-y: auto;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .grid-panel-wrapper {
+        width: 100%;
+        height: 60vh;
+        flex-basis: auto;
+    }
+
+    .grid-panel-wrapper::after {
+        box-shadow: var(--vignette-shadow); /* Use variable */
+        border: none;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    #grid-panel {
+        /* No changes needed, it will fill the wrapper */
+    }
+
+    .side-panel {
+        width: 100%;
+        height: auto;
+        flex-basis: auto;
+        flex-shrink: 0;
+        padding: 10px;
+    }
+
+    .found-words-section {
+        overflow: hidden;
+        flex-grow: 0;
+    }
+
+    .word-list {
+        flex-grow: 0;
+        max-height: 25vh;
+    }
+
+    #found-words-header {
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+    }
+
+    #found-words-header::after {
+        content: '−';
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-weight: bold;
+        font-size: 1.5em;
+        color: var(--modal-text-dim); /* Use text dim for icon */
+    }
+
+    .found-words-section.collapsed #found-words-header::after {
+        content: '+';
+    }
+
+    .found-words-section.collapsed .word-list {
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-bottom: 0;
+        border-width: 0;
+        overflow: hidden;
+    }
+
+    .current-word-display {
+        font-size: 1.5em;
+        min-height: 38px;
+    }
+
+    .verify-button {
+        padding: 12px 18px;
+        font-size: 1em;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-panel h1 {
+        font-size: 1.6em;
+    }
+    .header-stats {
+        font-size: 0.9em;
+    }
+    .menu-panel {
+        width: 100%;
+        transform: translateX(calc(-100% - 2px));
+    }
+    .modal {
+        width: 95%;
+        padding: 20px;
+    }
+    .current-word-display {
+        font-size: 1.4em;
+    }
+}
