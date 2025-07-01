@@ -838,17 +838,16 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     .main-content {
         flex-direction: column;
-        overflow-y: auto;
+        overflow: hidden; /* Prevent this container from scrolling, forcing children to adapt */
         gap: 10px;
         padding: 10px;
     }
 
     .grid-panel-wrapper {
         width: 100%;
-        /* Make the grid panel flexible to fill available space */
         flex-grow: 1;
-        flex-basis: 0;
-        min-height: 250px; /* Ensure it has a reasonable minimum height */
+        flex-basis: 60%; /* Give the grid a larger portion of the space */
+        min-height: 200px; /* Ensure it doesn't get too small */
     }
 
     .grid-panel-wrapper::after {
@@ -857,26 +856,12 @@ input:checked + .slider:before { transform: translateX(26px); }
         border-bottom: 2px solid var(--border-color);
     }
 
-    #grid-panel {
-        /* No changes needed, it will fill the wrapper */
-    }
-
     .side-panel {
         width: 100%;
-        height: auto;
-        flex-basis: auto;
-        flex-shrink: 0;
+        flex-grow: 1;
+        flex-basis: 40%; /* Take up the remaining space */
+        min-height: 0; /* CRITICAL: Allows the panel to shrink and enable internal scrolling */
         padding: 10px;
-    }
-
-    .found-words-section {
-        overflow: hidden;
-        flex-grow: 0;
-    }
-
-    .word-list {
-        flex-grow: 0;
-        max-height: 25vh;
     }
 
     #found-words-header {
