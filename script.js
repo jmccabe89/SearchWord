@@ -97,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Daily stats display elements for the INFO PANEL
     const totalWordsFoundPanel = document.getElementById('total-words-found-panel');
     const longestWordLengthPanel = document.getElementById('longest-word-length-panel');
+    const headerStats = document.querySelector('.header-stats');
 
     // Stats display elements for the MODAL
     const totalWordsFoundModal = document.getElementById('total-words-found-modal');
@@ -871,6 +872,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (foundWordsHeader && foundWordsSection) {
         foundWordsHeader.addEventListener('click', () => {
             foundWordsSection.classList.toggle('collapsed');
+        });
+    }
+
+    if (headerStats) {
+        headerStats.addEventListener('click', () => {
+            // The button-like behavior is only intended for mobile view.
+            if (window.innerWidth <= 768) {
+                updateStatsDisplay();
+                showModal(statsModal);
+            }
         });
     }
 

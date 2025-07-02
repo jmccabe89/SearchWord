@@ -832,9 +832,17 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     .header-stats {
         font-size: 1.1em;
-        gap: 15px;
-        padding: 10px 0;
+        /* Turn stats into a button on mobile */
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 10px;
+        margin-top: 8px;
+        background-color: var(--cell-bg);
+        transition: background-color 0.2s ease, border-color 0.3s ease;
+        border-top: none; /* Remove the top border as the background provides separation */
     }
+
+    .header-stats:hover { background-color: var(--cell-hover-bg); }
 
     .main-content {
         flex-direction: column;
@@ -846,8 +854,8 @@ input:checked + .slider:before { transform: translateX(26px); }
     .grid-panel-wrapper {
         width: 100%;
         flex-grow: 1;
-        flex-basis: 50%; /* Give the grid a larger portion of the space */
-        min-height: 200px; /* Ensure it doesn't get too small */
+        flex-basis: 0; /* Allow the grid to shrink and grow freely */
+        min-height: 150px; /* A more flexible minimum height for very short screens */
     }
 
     .grid-panel-wrapper::after {
@@ -858,10 +866,28 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     .side-panel {
         width: 100%;
-        flex-grow: 1;
-        flex-basis: 50%; /* Take up the remaining space */
-        min-height: 0; /* CRITICAL: Allows the panel to shrink and enable internal scrolling */
-        padding: 10px;
+        flex-grow: 0; /* Do not grow; height is based on content */
+        flex-shrink: 0; /* Do not shrink; respect content height */
+        height: auto; /* Let content determine the height */
+        padding: 5px 10px; /* Reduce vertical padding to make content more compact */
+    }
+
+    /* On mobile, hide the word list from the side panel for a cleaner UI */
+    .side-panel .found-words-section {
+        display: none;
+    }
+
+    /* On mobile, remove extra spacing from the current word section to make it more compact */
+    .side-panel .current-word-section {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+
+    /* Shrink the h2 inside the side panel on mobile */
+    .side-panel h2 {
+        font-size: 1em;
+        margin-bottom: 5px;
     }
 
     #found-words-header {
@@ -897,11 +923,12 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     .current-word-display {
         font-size: 1.5em;
-        min-height: 38px;
+        min-height: 34px;
+        padding: 6px;
     }
 
     .verify-button {
-        padding: 12px 18px;
+        padding: 8px 12px;
         font-size: 1em;
     }
 }
