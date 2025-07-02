@@ -31,6 +31,7 @@
     --vignette-shadow: inset 0 0 20px 10px #294563;
     --danger-color: #dc3545; /* Red for destructive actions */
     --danger-hover-color: #c82333;
+    --success-color: #28a745; /* Green for success feedback */
 }
 
 /* Light Mode Variables */
@@ -59,6 +60,7 @@ body.light-mode {
     --vignette-shadow: inset 0 0 20px 10px rgba(100, 150, 200, 0.3); /* Lighter vignette */
     --danger-color: #c82333;
     --danger-hover-color: #a71d2a;
+    --success-color: #218838;
 }
 
 body {
@@ -116,6 +118,19 @@ body {
   font-family: Impacto;
   font-weight: bold;
   src: url(data:font/ttf;base64,AAEAAAAXAQ...);
+}
+
+.game-timer {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Roboto', sans-serif;
+    font-weight: 700;
+    font-size: 1.4em;
+    color: var(--accent-color);
+    letter-spacing: 1px;
+    transition: color 0.3s ease;
 }
 
 #hamburger-menu {
@@ -395,6 +410,18 @@ body {
     transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
+.current-word-display.success {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: #ffffff; /* White text on green background */
+}
+
+.current-word-display.error {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: #ffffff; /* White text on red background */
+}
+
 .verify-button {
     background-color: var(--accent-color);
     color: var(--container-bg);
@@ -597,7 +624,20 @@ body.menu-open, body.modal-open {
     color: var(--accent-color);
     margin-top: 15px;
     border-top: 0px solid var(--border-color);
-    padding-top: 10px;
+    padding-top: 0px;
+}
+
+.modal-word-list-container {
+    display: none; /* Hidden by default on desktop */
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0; /* Allows flex-grow to work correctly with overflow */
+    width: 100%;
+    margin-top: 15px;
+}
+
+.modal-word-list-container h3 {
+    margin-bottom: 10px;
 }
 
 /* --- Definition Modal --- */
@@ -830,6 +870,10 @@ input:checked + .slider:before { transform: translateX(26px); }
         font-size: 1.5em;
     }
 
+    .game-timer {
+        font-size: 1.2em;
+    }
+
     .header-stats {
         font-size: 1.1em;
         /* Turn stats into a button on mobile */
@@ -840,6 +884,17 @@ input:checked + .slider:before { transform: translateX(26px); }
         background-color: var(--cell-bg);
         transition: background-color 0.2s ease, border-color 0.3s ease;
         border-top: none; /* Remove the top border as the background provides separation */
+    }
+
+    /* On mobile, make the stats modal taller and show the word list */
+    #stats-modal.modal {
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #stats-modal .modal-word-list-container {
+        display: flex;
     }
 
     .header-stats:hover { background-color: var(--cell-hover-bg); }
@@ -873,7 +928,7 @@ input:checked + .slider:before { transform: translateX(26px); }
     }
 
     /* On mobile, hide the word list from the side panel for a cleaner UI */
-    .side-panel .found-words-section {
+    .side-panel:not(.show-word-list) .found-words-section {
         display: none;
     }
 
@@ -923,7 +978,7 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     .current-word-display {
         font-size: 1.5em;
-        min-height: 34px;
+        height: 34px;
         padding: 6px;
     }
 
@@ -939,6 +994,10 @@ input:checked + .slider:before { transform: translateX(26px); }
     }
     .header-stats {
         font-size: 0.9em;
+    }
+    .game-timer {
+        font-size: 1.1em;
+        right: 15px;
     }
     .menu-panel {
         width: 100%;

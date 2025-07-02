@@ -8,11 +8,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="icon" href="favicon.png?" type="image/png">
 </head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0PD4MLNW95"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-0PD4MLNW95');
+</script>
 <body>
     <div class="game-container">
         <header class="header-panel">
             <button id="hamburger-menu" class="icon-button">&#9776;</button>
             <h1>SearchWord</h1>
+            <div id="game-timer" class="game-timer">15:00</div>
         </header>
 
         <main class="main-content">
@@ -63,6 +73,10 @@
             <p>Longest Word Today: <span id="longest-word-length-modal">0</span> Letters</p>
             <h3>All-Time Longest Word:</h3>
             <p id="longest-word" class="longest-word">N/A</p>
+            <div class="modal-word-list-container">
+                <h3>Words Found Today</h3>
+                <ul id="modal-word-list" class="word-list"></ul>
+            </div>
             </div>
 
         <div id="definition-modal" class="modal">

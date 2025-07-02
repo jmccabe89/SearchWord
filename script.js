@@ -93,6 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordList = document.getElementById('word-list');
     const foundWordsSection = document.getElementById('found-words-section');
     const foundWordsHeader = document.getElementById('found-words-header');
+    const sidePanel = document.querySelector('.side-panel');
+    const gameTimerDisplay = document.getElementById('game-timer');
 
     // Daily stats display elements for the INFO PANEL
     const totalWordsFoundPanel = document.getElementById('total-words-found-panel');
@@ -102,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Stats display elements for the MODAL
     const totalWordsFoundModal = document.getElementById('total-words-found-modal');
     const longestWordLengthModal = document.getElementById('longest-word-length-modal');
+    const modalWordList = document.getElementById('modal-word-list');
     const longestWordDisplay = document.getElementById('longest-word'); // Global longest word
 
     // Menu and Modal Elements
@@ -156,6 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let globalLongestWordLength = 0;
     let globalLongestWordFound = '';
 
+    // Timer state
+    const TIMER_DURATION = 15 * 60; // 15 minutes in seconds
+    let timerInterval = null;
+    let timeRemaining = TIMER_DURATION;
+    let isTimeUp = false;
+
     const DICTIONARY_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
 
     // Local Storage Keys
@@ -168,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY = 'seededLetterGridGlobalLongestWordLength';
     const LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY = 'seededLetterGridGlobalLongestWord';
     const LOCAL_STORAGE_THEME_KEY = 'seededLetterGridTheme';
+    const LOCAL_STORAGE_TIME_REMAINING_KEY = 'seededLetterGridTimeRemaining';
 
 
     // --- Utility Functions ---
@@ -295,6 +305,57 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(notificationModal);
     }
 
+    // --- Timer Functions ---
+    function updateTimerDisplay() {
+        if (!gameTimerDisplay) return;
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        gameTimerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+
+    function handleTimeUp() {
+        stopTimer();
+        isTimeUp = true;
+        timeRemaining = 0;
+        updateTimerDisplay();
+        verifyButton.disabled = true; // Disable verification
+        showNotificationModal("Time's Up!", "Try again tomorrow!");
+        console.log("Time is up!");
+    }
+
+    function startTimer() {
+        stopTimer(); // Ensure no multiple intervals are running
+        timerInterval = setInterval(() => {
+            timeRemaining--;
+            updateTimerDisplay();
+            if (timeRemaining <= 0) {
+                handleTimeUp();
+            }
+        }, 1000);
+    }
+
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            // Page is not visible, pause the timer and save the current time remaining.
+            stopTimer();
+            if (!isTimeUp) {
+                localStorage.setItem(LOCAL_STORAGE_TIME_REMAINING_KEY, timeRemaining.toString());
+            }
+            console.log("Timer paused due to page visibility change.");
+        } else {
+            // Page is visible, resume the timer.
+            if (!isTimeUp) {
+                startTimer();
+                console.log("Timer resumed.");
+            }
+        }
+    }
+
     /**
      * Checks a word against a public profanity filter API.
      * @param {string} word The word to check.
@@ -323,6 +384,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const DRAG_THRESHOLD = 5; // Minimum pixel movement to consider it a drag
 
     function handleCellClick(event) {
+        if (isTimeUp) {
+            console.log("Click prevented: Time is up.");
+            return;
+        }
+
         // Crucial check: only proceed with selection if no significant drag occurred
         if (isDraggingGrid) {
             console.log("Click prevented: Grid was being dragged.");
@@ -395,6 +461,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleVerifyClick() {
+        if (isTimeUp) {
+            console.log("Verification prevented: Time is up.");
+            return;
+        }
+
         const word = currentWordPath.map(cell => cell.element.textContent).join('').toUpperCase();
 
         if (word.length === 0) {
@@ -435,10 +506,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; // Stop processing
             }
 
+            // The word is valid and not profane. Update state immediately.
             console.log(`Word "${word}" is valid!`);
             addWordToList(word);
             foundWords.add(word);
-
             currentWordPath.forEach(cell => {
                 const cellKey = `${cell.row}_${cell.col}`;
                 permanentlyHighlightedCells.add(cellKey);
@@ -446,24 +517,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     cell.element.classList.add('selected');
                 }
             });
-
             totalWordsFound++;
             if (word.length > longestWordLength) {
                 longestWordLength = word.length;
                 dailyLongestWordFound = word;
             }
-
             if (word.length > globalLongestWordLength) {
                 globalLongestWordLength = word.length;
                 globalLongestWordFound = word;
             }
-            updateStatsDisplay(); 
-            clearWordPath(); 
             saveGameState();
+            updateStatsDisplay();
+
+            // Provide visual feedback and then clear the path.
+            currentWordDisplay.classList.add('success');
+            setTimeout(() => {
+                currentWordDisplay.classList.remove('success');
+                clearWordPath();
+            }, 500); // Keep success color for 500ms
         } else {
             console.log(`Word "${word}" is not a valid word.`);
+            // Provide visual feedback for the error.
             shakeElement(currentWordDisplay);
-            clearWordPath();
+            currentWordDisplay.classList.add('error');
+            setTimeout(() => {
+                currentWordDisplay.classList.remove('error');
+                clearWordPath();
+            }, 500);
         }
     }
 
@@ -471,6 +551,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const listItem = document.createElement('li');
         listItem.textContent = word;
         wordList.appendChild(listItem);
+
+        // Also add to the modal's word list for mobile view
+        if (modalWordList) {
+            const modalListItem = listItem.cloneNode(true);
+            modalWordList.appendChild(modalListItem);
+        }
+
         wordList.scrollTop = wordList.scrollHeight; 
     }
 
@@ -590,6 +677,9 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(LOCAL_STORAGE_LONGEST_WORD_KEY, longestWordLength.toString());
         localStorage.setItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY, dailyLongestWordFound);
         
+        // Also save the current time remaining.
+        localStorage.setItem(LOCAL_STORAGE_TIME_REMAINING_KEY, timeRemaining.toString());
+
         localStorage.setItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY, globalLongestWordLength.toString());
         localStorage.setItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY, globalLongestWordFound);
 
@@ -617,6 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
             localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
             localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
             localStorage.setItem(LOCAL_STORAGE_DATE_SEED_KEY, currentDateSeed);
 
             foundWords = new Set();
@@ -625,6 +716,9 @@ document.addEventListener('DOMContentLoaded', () => {
             longestWordLength = 0;
             dailyLongestWordFound = '';
             wordList.innerHTML = ''; 
+            if (modalWordList) {
+                modalWordList.innerHTML = '';
+            }
             return false;
         }
 
@@ -651,6 +745,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (savedDailyLongestWord) {
             dailyLongestWordFound = savedDailyLongestWord;
+        }
+
+        // Handle the timer state for the current day
+        const savedTimeRemaining = localStorage.getItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+        if (savedTimeRemaining !== null && !isNaN(parseInt(savedTimeRemaining, 10))) {
+            timeRemaining = parseInt(savedTimeRemaining, 10);
+            if (timeRemaining <= 0) {
+                timeRemaining = 0;
+                isTimeUp = true;
+            }
+        } else {
+            // No timer saved for today, so start a new one.
+            timeRemaining = TIMER_DURATION;
         }
 
         return true;
@@ -936,6 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY);
                 localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY);
                 localStorage.removeItem(LOCAL_STORAGE_THEME_KEY);
+                localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
                 
                 // Reload the page to apply the reset state
                 location.reload();
@@ -1019,16 +1127,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    if (modalWordList) {
+        modalWordList.addEventListener('click', (e) => {
+            if (e.target && e.target.nodeName === 'LI') {
+                const word = e.target.textContent;
+                if (word) {
+                    fetchAndShowDefinition(word);
+                }
+            }
+        });
+    }
+
     // --- Initial Setup ---
     loadTheme();
     currentGrid = generateGrid();
-    loadGameState();
+    loadGameState(); // This now sets up timeRemaining
     updateStatsDisplay();
     renderGrid(currentGrid); 
     updateCurrentWordDisplay();
     initGridDragScrolling();
+
+    // Start the timer after everything is loaded
+    if (!isTimeUp) {
+        updateTimerDisplay(); // Show initial time
+        if (!document.hidden) {
+            startTimer();
+        }
+    } else {
+        handleTimeUp(); // Ensure UI is in "time up" state
+    }
     
     window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Re-render the grid on window.load. This ensures that the grid is built
     // using the final, correct dimensions of its container after all CSS has been applied,
