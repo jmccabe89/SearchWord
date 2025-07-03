@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuStatsButton = document.getElementById('menu-stats'); // The 'Stats' link in the menu
     const menuShareButton = document.getElementById('menu-share');
     const menuSettingsButton = document.getElementById('menu-settings');
+    const menuRulesButton = document.getElementById('menu-rules');
     const modalOverlay = document.getElementById('modal-overlay');
     const statsModal = document.getElementById('stats-modal');
     const closeStatsModalButton = document.getElementById('close-stats-modal'); 
@@ -128,6 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Share Modal Elements
     const shareModal = document.getElementById('share-modal');
     const closeShareModalButton = document.getElementById('close-share-modal');
+    const shareModalTitle = shareModal.querySelector('h2');
+    const shareModalButtons = shareModal.querySelector('.share-buttons');
+    const shareModalInfo = document.getElementById('share-modal-info');
     const shareXButton = document.getElementById('share-x');
     const shareFacebookButton = document.getElementById('share-facebook');
     const copyShareLinkButton = document.getElementById('copy-share-link');
@@ -146,8 +150,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationTitle = document.getElementById('notification-title');
     const notificationMessage = document.getElementById('notification-message');
 
+    // Rules Modal Elements
+    const rulesModal = document.getElementById('rules-modal');
+    const closeRulesModalButton = document.getElementById('close-rules-modal');
+    const rulesContent = document.getElementById('rules-content');
+    const rulesDotsContainer = document.getElementById('rules-dots');
+    const rulesBackButton = document.getElementById('rules-back-button');
+    const rulesForwardButton = document.getElementById('rules-forward-button');
+
     let currentGrid = [];
-    let activeModal = null;
+    let modalStack = [];
     let currentWordPath = [];
     let foundWords = new Set(); 
     let permanentlyHighlightedCells = new Set(); 
@@ -161,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Timer state
     const TIMER_DURATION = 15 * 60; // 15 minutes in seconds
+    //const TIMER_DURATION = 5; // 5 seconds
     let timerInterval = null;
     let timeRemaining = TIMER_DURATION;
     let isTimeUp = false;
@@ -179,6 +192,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const LOCAL_STORAGE_THEME_KEY = 'seededLetterGridTheme';
     const LOCAL_STORAGE_TIME_REMAINING_KEY = 'seededLetterGridTimeRemaining';
 
+    const gameRules = [
+        "Find as many words as you can in the grid before the timer runs out.",
+        "Words must be at least 3 letters long.",
+        "Select adjacent letters (horizontally, vertically, or diagonally) to form a word.",
+        "You cannot use the same letter cell more than once in a single word.",
+        "Press \"Verify\" to check your word against the dictionary.",
+        "A new grid is generated everyday."
+    ];
+    
+    let currentRuleIndex = 0;
 
     // --- Utility Functions ---
 
@@ -237,6 +260,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateCurrentWordDisplay() {
         const currentWord = currentWordPath.map(cell => cell.element.textContent).join('');
         currentWordDisplay.textContent = currentWord;
+
+        // --- Dynamic Font Sizing Logic ---
+        // This ensures the text fits within the display without resizing the container.
+        
+        // 1. Reset font size to its default from CSS to start calculations.
+        currentWordDisplay.style.fontSize = ''; 
+
+        // 2. Get the computed font size in pixels and set a reasonable minimum.
+        const computedStyle = window.getComputedStyle(currentWordDisplay);
+        let currentFontSize = parseFloat(computedStyle.fontSize);
+        const minFontSize = 14; // Minimum font size in pixels.
+
+        // 3. Reduce font size until the text's scroll width is less than the element's visible width.
+        //    Also check scrollHeight against clientHeight to prevent vertical expansion.
+        while ((currentWordDisplay.scrollWidth > currentWordDisplay.clientWidth || currentWordDisplay.scrollHeight > currentWordDisplay.clientHeight) && currentFontSize > minFontSize) {
+            currentFontSize--; // Decrease by 1px.
+            currentWordDisplay.style.fontSize = `${currentFontSize}px`;
+        }
     }
 
     function clearWordPath() {
@@ -305,6 +346,39 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(notificationModal);
     }
 
+    // --- Rules Carousel Functions ---
+    function setupRulesCarousel() {
+        if (!rulesDotsContainer) return;
+        rulesDotsContainer.innerHTML = '';
+        gameRules.forEach((_, index) => {
+            const dot = document.createElement('span');
+            dot.classList.add('dot');
+            dot.dataset.index = index;
+            rulesDotsContainer.appendChild(dot);
+        });
+    }
+
+    function showRule(index) {
+        if (!rulesContent || index < 0 || index >= gameRules.length) return;
+
+        currentRuleIndex = index;
+        rulesContent.textContent = gameRules[index];
+
+        // Update dots
+        const dots = rulesDotsContainer.querySelectorAll('.dot');
+        dots.forEach((dot, dotIndex) => {
+            if (dotIndex === index) {
+                dot.classList.add('active');
+            } else {
+                dot.classList.remove('active');
+            }
+        });
+
+        // Update button visibility and state
+        rulesBackButton.disabled = (index === 0);
+        rulesForwardButton.disabled = (index === gameRules.length - 1);
+    }
+
     // --- Timer Functions ---
     function updateTimerDisplay() {
         if (!gameTimerDisplay) return;
@@ -324,7 +398,26 @@ document.addEventListener('DOMContentLoaded', () => {
         timeRemaining = 0;
         updateTimerDisplay();
         verifyButton.disabled = true; // Disable verification
-        showNotificationModal("Time's Up!", "Try again tomorrow!");
+
+        // Ensure the modal title and buttons are in their default state
+        if (shareModalTitle) shareModalTitle.textContent = "Share Your Score";
+        if (shareModalButtons) shareModalButtons.style.display = 'flex';
+
+        // Display the "Time's Up" message above the shareable text
+        if (shareModalInfo) {
+            shareModalInfo.textContent = "Time's Up! Try again tomorrow.";
+            shareModalInfo.style.display = 'block';
+        }
+
+        if (shareTextPreview) {
+            shareTextPreview.innerHTML = getShareMessage();
+        }
+
+        showModal(shareModal);
+
+        // Add visual feedback to show the grid is disabled.
+        gameGridContainer.classList.add('grid-disabled');
+
         console.log("Time is up!");
     }
 
@@ -386,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCellClick(event) {
         if (isTimeUp) {
             console.log("Click prevented: Time is up.");
+            shakeElement(event.target); // Shake the cell that was clicked
             return;
         }
 
@@ -549,7 +643,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addWordToList(word) {
         const listItem = document.createElement('li');
-        listItem.textContent = word;
+        listItem.dataset.word = word; // Store the raw word for API calls
+        listItem.innerHTML = `${word} <span class="word-length">(${word.length})</span>`;
         wordList.appendChild(listItem);
 
         // Also add to the modal's word list for mobile view
@@ -957,19 +1052,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showModal(modalElement) {
         if (!modalElement) return;
-        activeModal = modalElement;
+
+        // Pause timer only when the first modal in the stack is opened
+        if (modalStack.length === 0) {
+            if (!isTimeUp) {
+                stopTimer();
+                localStorage.setItem(LOCAL_STORAGE_TIME_REMAINING_KEY, timeRemaining.toString());
+                console.log("Timer paused due to modal opening.");
+            }
+        }
+
+        // Hide the current top-most modal before showing the new one
+        if (modalStack.length > 0) {
+            const topModal = modalStack[modalStack.length - 1];
+            topModal.classList.remove('show');
+        }
+
+        modalStack.push(modalElement);
         modalOverlay.classList.add('show');
-        activeModal.classList.add('show');
+        modalElement.classList.add('show');
         document.body.classList.add('modal-open');
         closeMenu();
     }
 
     function hideActiveModal() {
-        if (!activeModal) return;
+        if (modalStack.length === 0) return;
+
+        const currentModal = modalStack.pop();
+        currentModal.classList.remove('show');
+
+        if (modalStack.length > 0) {
+            // Show the underlying modal
+            const previousModal = modalStack[modalStack.length - 1];
+            previousModal.classList.add('show');
+        } else {
+            // This was the last modal, so hide the overlay and resume the timer
+            modalOverlay.classList.remove('show');
+            document.body.classList.remove('modal-open');
+
+            if (!isTimeUp && !document.hidden) {
+                startTimer();
+                console.log("Timer resumed after all modals closed.");
+            }
+        }
+    }
+
+    function hideAllModals() {
+        while (modalStack.length > 0) {
+            const modal = modalStack.pop();
+            modal.classList.remove('show');
+        }
         modalOverlay.classList.remove('show');
-        activeModal.classList.remove('show');
         document.body.classList.remove('modal-open');
-        activeModal = null;
+
+        // Resume timer if it was paused by the modal stack
+        if (!isTimeUp && !document.hidden) {
+            startTimer();
+            console.log("Timer resumed after all modals closed.");
+        }
     }
 
     // --- Event Listeners ---
@@ -1003,7 +1143,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     menuShareButton.addEventListener('click', (e) => {
         e.preventDefault();
-        shareTextPreview.textContent = getShareMessage();
+
+        // Reset the share modal to its default state before showing
+        if (shareModalTitle) shareModalTitle.textContent = "Share Your Score";
+        if (shareModalButtons) shareModalButtons.style.display = 'flex';
+
+        // Ensure the extra info text is hidden for a normal share
+        if (shareModalInfo) {
+            shareModalInfo.style.display = 'none';
+        }
+
+        shareTextPreview.innerHTML = getShareMessage(); // Use innerHTML for consistency
         showModal(shareModal);
     });
 
@@ -1013,11 +1163,37 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(settingsModal);
     });
 
+    menuRulesButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        setupRulesCarousel();
+        // Reset to the first rule every time the modal is opened
+        currentRuleIndex = 0;
+        showRule(currentRuleIndex);
+        showModal(rulesModal);
+    });
+
     closeStatsModalButton.addEventListener('click', hideActiveModal);
     closeDefinitionModalButton.addEventListener('click', hideActiveModal);
     closeShareModalButton.addEventListener('click', hideActiveModal);
     closeSettingsModalButton.addEventListener('click', hideActiveModal);
     closeNotificationModalButton.addEventListener('click', hideActiveModal);
+    closeRulesModalButton.addEventListener('click', hideActiveModal);
+
+    if (rulesBackButton) {
+        rulesBackButton.addEventListener('click', () => {
+            if (currentRuleIndex > 0) {
+                showRule(currentRuleIndex - 1);
+            }
+        });
+    }
+
+    if (rulesForwardButton) {
+        rulesForwardButton.addEventListener('click', () => {
+            if (currentRuleIndex < gameRules.length - 1) {
+                showRule(currentRuleIndex + 1);
+            }
+        });
+    }
 
     if (themeToggleButton) {
         themeToggleButton.addEventListener('change', () => {
@@ -1059,31 +1235,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     shareFacebookButton.addEventListener('click', () => {
         const shareData = generateShareText();
-        // The 'quote' parameter is not reliably supported. The best practice is to share the URL
-        // and let the user add their own text, which we will copy to their clipboard.
         const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
-        openShareWindow(facebookUrl);
-
-        // Also copy the share text to the clipboard for easy pasting.
+        
+        // Attempt to copy the text to the clipboard.
         navigator.clipboard.writeText(shareData.text).then(() => {
-            const originalPreviewText = shareTextPreview.textContent;
-            shareTextPreview.textContent = "Share text copied to clipboard!";
+            // On success, replace the current modal with a confirmation pop-up.
+            showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
+            
+            // After a delay, close all modals and open the share window.
             setTimeout(() => {
-                // Restore the original preview text only if it hasn't been changed by another action.
-                if (shareTextPreview.textContent === "Share text copied to clipboard!") {
-                    shareTextPreview.textContent = originalPreviewText;
-                }
+                hideAllModals();
+                openShareWindow(facebookUrl);
+            }, 2000);
+
+        }).catch(err => {
+            // If copy fails, show an error pop-up.
+            console.error('Failed to copy text for Facebook share: ', err);
+            showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
+            
+            // After a delay, close all modals and still open the share window.
+            setTimeout(() => {
+                hideAllModals();
+                openShareWindow(facebookUrl);
             }, 2500);
-    }).catch(err => {
-        console.error('Failed to copy text for Facebook share: ', err);
-        const originalPreviewText = shareTextPreview.textContent;
-        shareTextPreview.textContent = "Could not copy text. Please copy manually.";
-        setTimeout(() => {
-            if (shareTextPreview.textContent === "Could not copy text. Please copy manually.") {
-                shareTextPreview.textContent = originalPreviewText;
-            }
-        }, 3000);
-    });
+        });
     });
 
     copyShareLinkButton.addEventListener('click', () => {
@@ -1117,31 +1292,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    wordList.addEventListener('click', (e) => {
-        // Use event delegation to handle clicks on dynamically added <li> elements
-        if (e.target && e.target.nodeName === 'LI') {
-            const word = e.target.textContent;
+    function handleWordListClick(event) {
+        const listItem = event.target.closest('li');
+        if (listItem) {
+            const word = listItem.dataset.word;
             if (word) {
                 fetchAndShowDefinition(word);
             }
         }
-    });
+    }
 
+    wordList.addEventListener('click', handleWordListClick);
     if (modalWordList) {
-        modalWordList.addEventListener('click', (e) => {
-            if (e.target && e.target.nodeName === 'LI') {
-                const word = e.target.textContent;
-                if (word) {
-                    fetchAndShowDefinition(word);
-                }
-            }
-        });
+        modalWordList.addEventListener('click', handleWordListClick);
     }
 
     // --- Initial Setup ---
     loadTheme();
     currentGrid = generateGrid();
-    loadGameState(); // This now sets up timeRemaining
+    const isNewGame = !loadGameState(); // Check if it's a new game for the day.
     updateStatsDisplay();
     renderGrid(currentGrid); 
     updateCurrentWordDisplay();
@@ -1168,5 +1337,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderGrid(currentGrid);
         // Add a class to trigger the initial zoom animation
         gameGridContainer.classList.add('initial-zoom');
+
+        // If it's a new game, show the rules modal automatically after a short delay.
+        if (isNewGame) {
+            setTimeout(() => {
+                setupRulesCarousel();
+                currentRuleIndex = 0;
+                showRule(currentRuleIndex);
+                showModal(rulesModal);
+            }, 800); // Delay to allow the zoom animation to start.
+        }
     });
 });
