@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuRulesButton = document.getElementById('menu-rules');
     const modalOverlay = document.getElementById('modal-overlay');
     const statsModal = document.getElementById('stats-modal');
+    const statsModalTitle = statsModal.querySelector('h2');
     const closeStatsModalButton = document.getElementById('close-stats-modal'); 
     
     // Definition Modal Elements
@@ -463,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Display the "Time's Up" message above the shareable text
         if (shareModalInfo) {
-            shareModalInfo.textContent = "Time's Up! Try again tomorrow.";
+            shareModalInfo.textContent = "Time's Up! Come back again tomorrow and try again with a new grid!";
             shareModalInfo.style.display = 'block';
         }
 
@@ -1169,6 +1170,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentModal = modalStack.pop();
         currentModal.classList.remove('show');
 
+        // When closing the stats modal, always remove the list-view class to reset its state
+        if (currentModal.id === 'stats-modal') {
+            currentModal.classList.remove('list-view');
+        }
+
         if (modalStack.length > 0) {
             // Show the underlying modal
             const previousModal = modalStack[modalStack.length - 1];
@@ -1220,7 +1226,8 @@ document.addEventListener('DOMContentLoaded', () => {
         headerStats.addEventListener('click', () => {
             // The button-like behavior is only intended for mobile view.
             if (window.innerWidth <= 768) {
-                updateStatsDisplay();
+                if (statsModalTitle) statsModalTitle.textContent = 'Words Found';
+                statsModal.classList.add('list-view');
                 showModal(statsModal);
             }
         });
@@ -1232,6 +1239,9 @@ document.addEventListener('DOMContentLoaded', () => {
     menuStatsButton.addEventListener('click', (e) => {
         e.preventDefault();
         updateStatsDisplay();
+        // Ensure modal is in its default state when opened from the menu
+        if (statsModalTitle) statsModalTitle.textContent = 'Daily Stats';
+        statsModal.classList.remove('list-view');
         showModal(statsModal);
     });
 

@@ -161,7 +161,7 @@ body {
 .header-stats {
     display: flex;
     gap: 20px;
-    font-size: 1em;
+    font-size: 1.1em;
     justify-content: center;
     padding: 15px 0;
     border-top: 1px solid var(--border-color);
@@ -506,12 +506,18 @@ body {
     background-color: var(--accent-color);
     color: var(--container-bg);
     border: none;
-    padding: 14px 20px;
-    font-size: 1.1em;
-    border-radius: 5px;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 1.8em;
+    line-height: 1;
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease, color 0.3s ease;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
 }
 
 .verify-button:hover {
@@ -1082,6 +1088,14 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     #stats-modal .modal-word-list-container {
         display: flex;
+    }
+
+    /* When stats modal is in list-only view on mobile, hide the stat paragraphs */
+    #stats-modal.list-view > p,
+    #stats-modal.list-view > h3,
+    #stats-modal.list-view .longest-word,
+    #stats-modal.list-view .modal-word-list-container > h3 {
+        display: none;
     }
 
     .header-stats:hover {
