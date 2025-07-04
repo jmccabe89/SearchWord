@@ -90,11 +90,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const gridPanel = document.getElementById('grid-panel'); // The direct parent of game-grid, and the actual scrollable element
     const currentWordDisplay = document.getElementById('current-word-display');
     const verifyButton = document.getElementById('verify-button');
+    const clearButton = document.getElementById('clear-button');
     const wordList = document.getElementById('word-list');
     const foundWordsSection = document.getElementById('found-words-section');
     const foundWordsHeader = document.getElementById('found-words-header');
     const sidePanel = document.querySelector('.side-panel');
     const gameTimerDisplay = document.getElementById('game-timer');
+    const gridPanelWrapper = document.querySelector('.grid-panel-wrapper');
+    const vignetteTop = document.getElementById('vignette-top');
+    const vignetteBottom = document.getElementById('vignette-bottom');
+    const vignetteLeft = document.getElementById('vignette-left');
+    const vignetteRight = document.getElementById('vignette-right');
+    const pathOverlay = document.getElementById('path-overlay');
 
     // Daily stats display elements for the INFO PANEL
     const totalWordsFoundPanel = document.getElementById('total-words-found-panel');
@@ -160,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentGrid = [];
     let modalStack = [];
+    let foundWordPaths = [];
     let currentWordPath = [];
     let foundWords = new Set(); 
     let permanentlyHighlightedCells = new Set(); 
@@ -170,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let globalLongestWordLength = 0;
     let globalLongestWordFound = '';
+    let currentCellSize = 0;
 
     // Timer state
     const TIMER_DURATION = 15 * 60; // 15 minutes in seconds
@@ -191,17 +200,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY = 'seededLetterGridGlobalLongestWord';
     const LOCAL_STORAGE_THEME_KEY = 'seededLetterGridTheme';
     const LOCAL_STORAGE_TIME_REMAINING_KEY = 'seededLetterGridTimeRemaining';
+    const LOCAL_STORAGE_FOUND_PATHS_KEY = 'seededLetterGridFoundPaths';
+    const LOCAL_STORAGE_RULES_SEEN_KEY = 'seededLetterGridRulesSeen';
 
     const gameRules = [
-        "Find as many words as you can in the grid before the timer runs out.",
+        "Find as many words as you can in the randomly-generated grid before the timer runs out.",
         "Words must be at least 3 letters long.",
         "Select adjacent letters (horizontally, vertically, or diagonally) to form a word.",
-        "You cannot use the same letter cell more than once in a single word.",
-        "Press \"Verify\" to check your word against the dictionary.",
+        "You cannot use the same letter cell more than once.",
+        "The timer stops counting down when you leave the page, so you can pace yourself over the course of the day.",
         "A new grid is generated everyday."
     ];
     
     let currentRuleIndex = 0;
+    let isScrolling = false;
 
     // --- Utility Functions ---
 
@@ -278,6 +290,15 @@ document.addEventListener('DOMContentLoaded', () => {
             currentFontSize--; // Decrease by 1px.
             currentWordDisplay.style.fontSize = `${currentFontSize}px`;
         }
+
+        // Enable or disable action buttons based on whether a word is being formed.
+        const hasWord = currentWord.length > 0;
+        if (clearButton) {
+            clearButton.disabled = !hasWord;
+        }
+        if (verifyButton && !isTimeUp && !verifyButton.classList.contains('verifying')) {
+            verifyButton.disabled = !hasWord;
+        }
     }
 
     function clearWordPath() {
@@ -344,6 +365,43 @@ document.addEventListener('DOMContentLoaded', () => {
         notificationTitle.textContent = title;
         notificationMessage.textContent = message;
         showModal(notificationModal);
+    }
+
+    // --- Vignette Functions ---
+    function updateVignetteVisibility() {
+        if (!gridPanel) return;
+    
+        const { scrollLeft, scrollTop, scrollWidth, scrollHeight, clientWidth, clientHeight } = gridPanel;
+        const scrollEndLeeway = 5; // Leeway of a few pixels for calculations
+    
+        // Toggle the 'hidden' class based on scroll position for each vignette element
+        vignetteTop.classList.toggle('hidden', scrollTop <= scrollEndLeeway);
+        vignetteBottom.classList.toggle('hidden', scrollTop >= scrollHeight - clientHeight - scrollEndLeeway);
+        vignetteLeft.classList.toggle('hidden', scrollLeft <= scrollEndLeeway);
+        vignetteRight.classList.toggle('hidden', scrollLeft >= scrollWidth - clientWidth - scrollEndLeeway);
+
+        isScrolling = false;
+    }
+
+    // --- Path Drawing Functions ---
+    function drawPath(path, cellSize, gap) {
+        if (!path || path.length < 2 || !pathOverlay) return;
+
+        const pathData = path.map((point, index) => {
+            const x = (point.col * (cellSize + gap)) + (cellSize / 2);
+            const y = (point.row * (cellSize + gap)) + (cellSize / 2);
+            return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+        }).join(' ');
+
+        const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pathElement.setAttribute('d', pathData);
+        pathOverlay.appendChild(pathElement);
+    }
+
+    function redrawAllFoundPaths(cellSize, gap) {
+        if (!pathOverlay) return;
+        pathOverlay.innerHTML = ''; // Clear existing paths
+        foundWordPaths.forEach(path => drawPath(path, cellSize, gap));
     }
 
     // --- Rules Carousel Functions ---
@@ -582,13 +640,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        verifyButton.classList.add('verifying');
         verifyButton.disabled = true;
-        verifyButton.textContent = "Verifying...";
 
         const isValid = await checkWordWithAPI(word);
 
+        verifyButton.classList.remove('verifying');
         verifyButton.disabled = false;
-        verifyButton.textContent = "Verify";
 
         if (isValid) {
             // New API-based check for inappropriate words
@@ -603,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // The word is valid and not profane. Update state immediately.
             console.log(`Word "${word}" is valid!`);
             addWordToList(word);
+
             foundWords.add(word);
             currentWordPath.forEach(cell => {
                 const cellKey = `${cell.row}_${cell.col}`;
@@ -612,6 +671,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             totalWordsFound++;
+
+            const simplifiedPath = currentWordPath.map(p => ({ row: p.row, col: p.col }));
+            foundWordPaths.push(simplifiedPath);
+            drawPath(simplifiedPath, currentCellSize, GRID_GAP);
+
             if (word.length > longestWordLength) {
                 longestWordLength = word.length;
                 dailyLongestWordFound = word;
@@ -771,6 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(LOCAL_STORAGE_TOTAL_WORDS_KEY, totalWordsFound.toString());
         localStorage.setItem(LOCAL_STORAGE_LONGEST_WORD_KEY, longestWordLength.toString());
         localStorage.setItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY, dailyLongestWordFound);
+        localStorage.setItem(LOCAL_STORAGE_FOUND_PATHS_KEY, JSON.stringify(foundWordPaths));
         
         // Also save the current time remaining.
         localStorage.setItem(LOCAL_STORAGE_TIME_REMAINING_KEY, timeRemaining.toString());
@@ -803,6 +868,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
             localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
             localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
             localStorage.setItem(LOCAL_STORAGE_DATE_SEED_KEY, currentDateSeed);
 
             foundWords = new Set();
@@ -810,6 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
             totalWordsFound = 0;
             longestWordLength = 0;
             dailyLongestWordFound = '';
+            foundWordPaths = [];
             wordList.innerHTML = ''; 
             if (modalWordList) {
                 modalWordList.innerHTML = '';
@@ -822,6 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedTotalWords = localStorage.getItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
         const savedLongestWord = localStorage.getItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
         const savedDailyLongestWord = localStorage.getItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
+        const savedFoundPaths = localStorage.getItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
 
         if (savedFoundWords) {
             foundWords = new Set(JSON.parse(savedFoundWords));
@@ -840,6 +908,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (savedDailyLongestWord) {
             dailyLongestWordFound = savedDailyLongestWord;
+        }
+        if (savedFoundPaths) {
+            foundWordPaths = JSON.parse(savedFoundPaths);
         }
 
         // Handle the timer state for the current day
@@ -926,6 +997,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Otherwise, use the smaller of the two ideal sizes to fit best.
         cellSize = Math.max(MIN_CELL_SIZE, Math.min(idealCellSizeX, idealCellSizeY));
         fontSize = Math.max(MIN_FONT_SIZE, Math.floor(cellSize * 0.7)); // Further increased font size relative to cell size
+        currentCellSize = cellSize; // Store for use outside this function
 
         // --- DYNAMIC TRANSFORM ORIGIN ---
         // To make the zoom effect originate from the center of the viewport,
@@ -964,6 +1036,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         gameGridContainer.appendChild(fragment);
+
+        // Set the size of the SVG overlay to match the grid's full scrollable size
+        if (pathOverlay) {
+            const totalGridSize = GRID_SIZE * cellSize + (GRID_SIZE - 1) * GRID_GAP;
+            pathOverlay.setAttribute('viewBox', `0 0 ${totalGridSize} ${totalGridSize}`);
+            pathOverlay.style.width = `${totalGridSize}px`;
+            pathOverlay.style.height = `${totalGridSize}px`;
+            redrawAllFoundPaths(cellSize, GRID_GAP);
+        }
 
         clearWordPath(); 
         centerGridInView(cellSize, GRID_GAP);
@@ -1036,6 +1117,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    gridPanel.addEventListener('scroll', () => {
+        if (!isScrolling) {
+            window.requestAnimationFrame(updateVignetteVisibility);
+            isScrolling = true;
+        }
+    });
 
 
     // --- Menu and Modal Handlers ---
@@ -1114,6 +1202,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     verifyButton.addEventListener('click', handleVerifyClick);
+
+    if (clearButton) {
+        clearButton.addEventListener('click', () => {
+            clearWordPath();
+        });
+    }
 
     // Collapsible "Words Found" section
     if (foundWordsHeader && foundWordsSection) {
@@ -1220,6 +1314,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY);
                 localStorage.removeItem(LOCAL_STORAGE_THEME_KEY);
                 localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+                localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
+                localStorage.removeItem(LOCAL_STORAGE_RULES_SEEN_KEY);
                 
                 // Reload the page to apply the reset state
                 location.reload();
@@ -1338,14 +1434,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add a class to trigger the initial zoom animation
         gameGridContainer.classList.add('initial-zoom');
 
-        // If it's a new game, show the rules modal automatically after a short delay.
-        if (isNewGame) {
+        // Check if the user has seen the rules before.
+        const rulesSeen = localStorage.getItem(LOCAL_STORAGE_RULES_SEEN_KEY);
+        if (!rulesSeen) {
+            // If not, show the rules modal automatically after a short delay.
             setTimeout(() => {
                 setupRulesCarousel();
                 currentRuleIndex = 0;
                 showRule(currentRuleIndex);
                 showModal(rulesModal);
-            }, 800); // Delay to allow the zoom animation to start.
+                // Mark the rules as seen so they don't show again.
+                localStorage.setItem(LOCAL_STORAGE_RULES_SEEN_KEY, 'true');
+            }, 800);
         }
+
+        // Set initial vignette state
+        updateVignetteVisibility();
     });
 });
