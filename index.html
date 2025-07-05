@@ -12,6 +12,8 @@
     <link rel="apple-touch-icon" href="favicon.png?">
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9410743854803962"
      crossorigin="anonymous"></script>
+    <!-- Chart.js CDN for word length chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0PD4MLNW95"></script>
@@ -69,15 +71,47 @@
 
     <div id="menu-panel" class="menu-panel">
         <button id="close-menu" class="icon-button close-menu">&times;</button>
-        <nav>
+        <nav style="flex-grow: 1;">
             <ul>
                 <li><a href="#" id="menu-rules">How To Play</a></li>
                 <li><a href="#" id="menu-stats">Daily Stats</a></li>
                 <li><a href="#" id="menu-share">Share</a></li>
                 <li><a href="#" id="menu-settings">Settings</a></li>
-                </ul>
+                <li><a href="#" id="menu-about">About</a></li>
+            </ul>
         </nav>
+        <div id="donate-button-container" style="padding: 20px; text-align: center;">
+            <div id="donate-button"></div>
+            <script src="https://www.paypalobjects.com/donate/sdk/donate-sdk.js" charset="UTF-8"></script>
+            <script>
+            PayPal.Donation.Button({
+            env:'production',
+            hosted_button_id:'X4X2Y65YV8YLC',
+            image: {
+            src:'https://www.paypalobjects.com/en_GB/i/btn/btn_donate_LG.gif',
+            alt:'Donate with PayPal button',
+            title:'PayPal - The safer, easier way to pay online!',
+            }
+            }).render('#donate-button');
+            </script>
+        </div>
     </div>
+    <div id="about-modal" class="modal" style="z-index: 1200;">
+            <button id="close-about-modal" class="icon-button close-modal">&times;</button>
+            <h2>About SearchWord</h2>
+            <div class="about-content">
+                <p><strong>SearchWord</strong> uses the following public APIs to enhance your experience:</p>
+                <strong>Free Dictionary API:</strong><br>
+                    <p><a href="https://dictionaryapi.dev/" target="_blank" rel="noopener" class="about-link">https://dictionaryapi.dev/</a><br>
+                        Used to provide word definitions and phonetics.
+                    </p>
+                    <strong>PurgoMalum Profanity Filter API:</strong><br>
+                    <p><a href="https://www.purgomalum.com/" target="_blank" rel="noopener" class="about-link">https://www.purgomalum.com/</a><br>
+                        Used to filter out inappropriate words from the game.
+                    </p>
+                <p>This game is not affiliated with or endorsed by the above API providers.</p>
+            </div>
+        </div>
 
     <div id="modal-overlay" class="modal-overlay">
         <div id="stats-modal" class="modal">
@@ -87,11 +121,18 @@
             <p>Longest Word Today: <span id="longest-word-length-modal">0</span> Letters</p>
             <h3>All-Time Longest Word:</h3>
             <p id="longest-word" class="longest-word">N/A</p>
+            <div id="stats-chart-section">
+                <h3>Word Length Distribution</h3>
+                <!-- Word Length Chart Container -->
+                <div id="word-length-chart-container" style="width:100%;max-width:400px;margin:0 auto 1.5em auto;display:flex;justify-content:center;">
+                    <canvas id="word-length-chart" style="background:var(--modal-bg,#fff);border-radius:8px;max-width:100%;height:220px;"></canvas>
+                </div>
+            </div>
             <div class="modal-word-list-container">
                 <h3>Words Found Today</h3>
                 <ul id="modal-word-list" class="word-list"></ul>
             </div>
-            </div>
+        </div>
 
         <div id="definition-modal" class="modal">
             <button id="close-definition-modal" class="icon-button close-modal">&times;</button>

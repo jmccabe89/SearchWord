@@ -1212,3 +1212,25 @@ input:checked + .slider:before { transform: translateX(26px); }
         font-size: 1.3em;
     }
 }
+
+/* About Modal Styles */
+.about-link {
+    color: #1976d2;
+    text-decoration: underline;
+    word-break: break-all;
+}
+body.dark-mode .about-link, .dark-mode .about-link {
+    color: #90caf9;
+}
+.about-content ul {
+    margin: 1.2em 0 1.2em 1.2em;
+    padding-left: 1.2em;
+}
+.about-content li {
+    margin-bottom: 1.1em;
+    line-height: 1.6;
+}
+.about-content p {
+    margin-top: 1.2em;
+    margin-bottom: 1.2em;
+}

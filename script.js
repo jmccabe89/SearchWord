@@ -1,4 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Large Grid Cells (Mobile) Setting ---
+    const LOCAL_STORAGE_LARGE_CELLS_KEY = 'seededLetterGridLargeCells';
+    const largeCellsToggle = document.getElementById('large-cells-toggle');
+    function isMobile() {
+        return window.innerWidth <= 600;
+    }
+    function getLargeCellsSetting() {
+        return localStorage.getItem(LOCAL_STORAGE_LARGE_CELLS_KEY) === 'true';
+    }
+    function setLargeCellsSetting(val) {
+        localStorage.setItem(LOCAL_STORAGE_LARGE_CELLS_KEY, val ? 'true' : 'false');
+    }
+    if (largeCellsToggle) {
+        largeCellsToggle.checked = getLargeCellsSetting();
+        largeCellsToggle.addEventListener('change', () => {
+            setLargeCellsSetting(largeCellsToggle.checked);
+            renderGrid(currentGrid);
+        });
+    }
     const GRID_SIZE = 50; // Number of rows/columns
     const GRID_GAP = 2; // in pixels
 
@@ -122,6 +141,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuShareButton = document.getElementById('menu-share');
     const menuSettingsButton = document.getElementById('menu-settings');
     const menuRulesButton = document.getElementById('menu-rules');
+    const menuAboutButton = document.getElementById('menu-about');
+    // About Modal (simple implementation)
+    let aboutModal = document.getElementById('about-modal');
+    if (aboutModal) {
+        const closeAboutBtn = aboutModal.querySelector('#close-about-modal');
+        if (closeAboutBtn) {
+            closeAboutBtn.addEventListener('click', hideActiveModal);
+        }
+        if (menuAboutButton) {
+            menuAboutButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                showModal(aboutModal);
+            });
+        }
+    }
     const modalOverlay = document.getElementById('modal-overlay');
     const statsModal = document.getElementById('stats-modal');
     const statsModalTitle = statsModal.querySelector('h2');
@@ -206,11 +240,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const gameRules = [
         "Find as many words as you can in the randomly-generated grid before the timer runs out.",
-        "Words must be at least 3 letters long.",
         "Select adjacent letters (horizontally, vertically, or diagonally) to form a word.",
+        "Words must be at least 3 letters long.",
         "You cannot use the same letter cell more than once.",
         "The timer stops counting down when you leave the page, so you can pace yourself over the course of the day.",
-        "A new grid is generated everyday."
+        "A new grid is generated everyday.  Come back each day and try to beat your score!"
     ];
     
     let currentRuleIndex = 0;
@@ -500,7 +534,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             console.log("Timer paused due to page visibility change.");
         } else {
-            // Page is visible, resume the timer.
+            // Page is visible again. First, check if the day has changed.
+            const savedDateSeed = localStorage.getItem(LOCAL_STORAGE_DATE_SEED_KEY);
+            const currentDateSeed = getDateSeed().toString();
+
+            if (savedDateSeed && savedDateSeed !== currentDateSeed) {
+                console.log("New day detected upon returning to tab. Notifying user and reloading page...");
+                // Show a notification before reloading for a better user experience.
+                showNotificationModal("New Day!", "A new puzzle is ready. The page will now refresh.");
+                // Wait a moment for the user to see the message before reloading.
+                setTimeout(() => {
+                    location.reload();
+                }, 2500); // 2.5 second delay
+                return; // Stop further execution in this function
+            }
+
+            // If the day hasn't changed, resume the timer.
             if (!isTimeUp) {
                 startTimer();
                 console.log("Timer resumed.");
@@ -819,6 +868,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
+
     function updateStatsDisplay() {
         if (totalWordsFoundPanel) totalWordsFoundPanel.textContent = totalWordsFound;
         if (longestWordLengthPanel) longestWordLengthPanel.textContent = longestWordLength;
@@ -827,6 +877,87 @@ document.addEventListener('DOMContentLoaded', () => {
         if (longestWordLengthModal) longestWordLengthModal.textContent = longestWordLength;
         
         if (longestWordDisplay) longestWordDisplay.textContent = globalLongestWordFound ? `${globalLongestWordFound} (${globalLongestWordLength})` : 'N/A';
+
+        // --- Word Length Distribution Chart ---
+        const chartSection = document.getElementById('stats-chart-section');
+        const chartCanvas = document.getElementById('word-length-chart');
+        const modalWordListContainer = document.querySelector('.modal-word-list-container');
+        if (chartSection && chartCanvas && modalWordListContainer) {
+            const isListView = statsModal.classList.contains('list-view');
+            // Toggle visibility of the entire chart section (header + canvas)
+            chartSection.style.display = isListView ? 'none' : '';
+            modalWordListContainer.style.display = isListView ? 'flex' : 'none';
+
+            // Responsive chart sizing for mobile
+            let chartWidth = 350;
+            let chartHeight = 180;
+            if (window.innerWidth <= 600) {
+                chartWidth = Math.min(window.innerWidth * 0.85, 350);
+                chartHeight = Math.max(120, Math.floor(chartWidth * 0.5));
+            }
+            chartCanvas.width = chartWidth;
+            chartCanvas.height = chartHeight;
+
+            if (!isListView && window.Chart) {
+                // Gather word length data for today
+                const wordLengths = {};
+                foundWords.forEach(word => {
+                    const len = word.length;
+                    wordLengths[len] = (wordLengths[len] || 0) + 1;
+                });
+                // Sort lengths numerically
+                const sortedLengths = Object.keys(wordLengths).map(Number).sort((a, b) => a - b);
+                const labels = sortedLengths;
+                const data = sortedLengths.map(len => wordLengths[len]);
+
+                // Destroy previous chart instance if exists
+                if (chartCanvas._chartInstance) {
+                    chartCanvas._chartInstance.destroy();
+                }
+
+                chartCanvas._chartInstance = new Chart(chartCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Words by Length',
+                            data: data,
+                            fill: false,
+                            borderColor: 'rgba(0, 123, 255, 1)',
+                            backgroundColor: 'rgba(0, 123, 255, 0.7)',
+                            tension: 0.2,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: 'rgba(0, 123, 255, 1)',
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Number of Letters' },
+                                ticks: { color: '#fff' },
+                                grid: { color: 'rgba(255,255,255,0.1)' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Number of Words' },
+                                beginAtZero: true,
+                                ticks: { color: '#fff', precision: 0 },
+                                grid: { color: 'rgba(255,255,255,0.1)' }
+                            }
+                        }
+                    }
+                });
+            } else if (chartCanvas._chartInstance) {
+                chartCanvas._chartInstance.destroy();
+                chartCanvas._chartInstance = null;
+            }
+        }
     }
 
     function saveGameState() {
@@ -979,8 +1110,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fragment = document.createDocumentFragment();
 
-        const MIN_CELL_SIZE = 35; // pixels, minimum size for a cell (e.g., 35px x 35px)
-        const MIN_FONT_SIZE = 22; // pixels, minimum font size for the letter
+        // Large grid cells for mobile option
+        const largeCells = getLargeCellsSetting();
+        const isMobileView = isMobile();
+        const MIN_CELL_SIZE = (largeCells && isMobileView) ? 48 : 35; // 48px for large, 35px default
+        const MIN_FONT_SIZE = (largeCells && isMobileView) ? 30 : 22;
 
         let cellSize = MIN_CELL_SIZE;
         let fontSize = MIN_FONT_SIZE;
@@ -1228,6 +1362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.innerWidth <= 768) {
                 if (statsModalTitle) statsModalTitle.textContent = 'Words Found';
                 statsModal.classList.add('list-view');
+                updateStatsDisplay(); // Ensure chart visibility is updated
                 showModal(statsModal);
             }
         });
@@ -1342,29 +1477,40 @@ document.addEventListener('DOMContentLoaded', () => {
     shareFacebookButton.addEventListener('click', () => {
         const shareData = generateShareText();
         const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
-        
-        // Attempt to copy the text to the clipboard.
-        navigator.clipboard.writeText(shareData.text).then(() => {
-            // On success, replace the current modal with a confirmation pop-up.
-            showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
-            
-            // After a delay, close all modals and open the share window.
-            setTimeout(() => {
-                hideAllModals();
-                openShareWindow(facebookUrl);
-            }, 2000);
 
-        }).catch(err => {
-            // If copy fails, show an error pop-up.
-            console.error('Failed to copy text for Facebook share: ', err);
-            showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
-            
-            // After a delay, close all modals and still open the share window.
-            setTimeout(() => {
-                hideAllModals();
-                openShareWindow(facebookUrl);
-            }, 2500);
-        });
+        // Use the modern Web Share API on supported devices (like iOS)
+        if (navigator.share) {
+            navigator.share({
+                title: 'SearchWord Game Score',
+                text: shareData.text,
+                url: shareData.url
+            }).then(() => {
+                console.log('Shared successfully via Web Share API.');
+                hideActiveModal(); // Close the share modal on success
+            }).catch((error) => {
+                // The user may have cancelled the share action, which is not an error.
+                if (error.name !== 'AbortError') {
+                    console.error('Error with Web Share API:', error);
+                    showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
+                }
+            });
+        } else {
+            // Fallback for desktop browsers that don't support the Web Share API
+            navigator.clipboard.writeText(shareData.text).then(() => {
+                showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
+                setTimeout(() => {
+                    hideAllModals();
+                    openShareWindow(facebookUrl);
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text for Facebook share: ', err);
+                showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
+                setTimeout(() => {
+                    hideAllModals();
+                    openShareWindow(facebookUrl);
+                }, 2500);
+            });
+        }
     });
 
     copyShareLinkButton.addEventListener('click', () => {
