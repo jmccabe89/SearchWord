@@ -1,0 +1,7 @@
+# Allow all user agents to crawl the site
+User-agent: *
+Disallow:
+
+# Specify the location of the sitemap
+# It's good practice to create a sitemap.xml file once you have more pages.
+Sitemap: https://www.searchword.net/sitemap.xml

@@ -181,21 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuShareButton = document.getElementById('menu-share');
     const menuSettingsButton = document.getElementById('menu-settings');
     const menuRulesButton = document.getElementById('menu-rules');
-    const menuAboutButton = document.getElementById('menu-about');
-    // About Modal (simple implementation)
-    let aboutModal = document.getElementById('about-modal');
-    if (aboutModal) {
-        const closeAboutBtn = aboutModal.querySelector('#close-about-modal');
-        if (closeAboutBtn) {
-            closeAboutBtn.addEventListener('click', hideActiveModal);
-        }
-        if (menuAboutButton) {
-            menuAboutButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                showModal(aboutModal);
-            });
-        }
-    }
     const modalOverlay = document.getElementById('modal-overlay');
     const statsModal = document.getElementById('stats-modal');
     const statsModalTitle = statsModal.querySelector('h2');
@@ -240,11 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const rulesDotsContainer = document.getElementById('rules-dots');
     const rulesBackButton = document.getElementById('rules-back-button');
     const rulesForwardButton = document.getElementById('rules-forward-button');
-
-    // Contact Modal Elements
-    const menuContactButton = document.getElementById('menu-contact');
-    const contactModal = document.getElementById('contact-modal');
-    const closeContactModalButton = document.getElementById('close-contact-modal');
 
     let currentGrid = [];
     let modalStack = [];
@@ -1540,18 +1520,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(rulesModal);
     });
 
-    menuContactButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        showModal(contactModal);
-    });
-
     closeStatsModalButton.addEventListener('click', hideActiveModal);
     closeDefinitionModalButton.addEventListener('click', hideActiveModal);
     closeShareModalButton.addEventListener('click', hideActiveModal);
     closeSettingsModalButton.addEventListener('click', hideActiveModal);
     closeNotificationModalButton.addEventListener('click', hideActiveModal);
     closeRulesModalButton.addEventListener('click', hideActiveModal);
-    closeContactModalButton.addEventListener('click', hideActiveModal);
 
     if (rulesBackButton) {
         rulesBackButton.addEventListener('click', () => {

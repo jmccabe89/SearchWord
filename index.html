@@ -4,6 +4,23 @@
     <script id="Cookiebot" src="https://consent.cookiebot.com/uc.js" data-cbid="bb114862-25b7-4d87-abed-d8f9de1ab1be" type="text/javascript" async></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="description" content="SearchWord is a fun, free daily word search puzzle. Find as many words as you can in a giant grid against the clock. A new challenge every day!">
+    <meta name="keywords" content="word search, word game, puzzle game, daily puzzle, brain game, searchword">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.searchword.net/">
+    <meta property="og:title" content="SearchWord - Daily Word Search Puzzle">
+    <meta property="og:description" content="A new, challenging word search grid every day. How many words can you find?">
+    <meta property="og:image" content="https://www.searchword.net/searchword-social-share.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://www.searchword.net/">
+    <meta property="twitter:title" content="SearchWord - Daily Word Search Puzzle">
+    <meta property="twitter:description" content="A new, challenging word search grid every day. How many words can you find?">
+    <meta property="twitter:image" content="https://www.searchword.net/searchword-social-share.png">
+
     <title>SearchWord</title>
     <link rel="stylesheet" href="style.css">
     <style>
@@ -89,8 +106,9 @@
                 <li><a href="#" id="menu-stats">Daily Stats</a></li>
                 <li><a href="#" id="menu-share">Share</a></li>
                 <li><a href="#" id="menu-settings">Settings</a></li>
-                <li><a href="#" id="menu-about">About</a></li>
-                <li><a href="#" id="menu-contact">Contact</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="contact.html">Contact</a></li>
+                <li><a href="privacy.html">Privacy Policy</a></li>
             </ul>
         </nav>
         <div id="donate-button-container" style="padding: 20px; text-align: center;">
@@ -109,32 +127,6 @@
             </script>
         </div>
     </div>
-    <div id="about-modal" class="modal" style="z-index: 1200;">
-            <button id="close-about-modal" class="icon-button close-modal">&times;</button>
-            <h2>About SearchWord</h2>
-            <div class="about-content">
-                <p><strong>SearchWord</strong> uses the following public APIs to enhance your experience:</p>
-                <strong>Free Dictionary API:</strong><br>
-                    <p><a href="https://dictionaryapi.dev/" target="_blank" rel="noopener" class="about-link">https://dictionaryapi.dev/</a><br>
-                        Used to provide word definitions and phonetics.
-                    </p>
-                    <strong>PurgoMalum Profanity Filter API:</strong><br>
-                    <p><a href="https://www.purgomalum.com/" target="_blank" rel="noopener" class="about-link">https://www.purgomalum.com/</a><br>
-                        Used to filter out inappropriate words from the game.
-                    </p>
-                <p>This game is not affiliated with or endorsed by the above API providers.</p>
-            </div>
-        </div>
-
-        <div id="contact-modal" class="modal" style="z-index: 1200;">
-            <button id="close-contact-modal" class="icon-button close-modal">&times;</button>
-            <h2>Contact Us</h2>
-            <div class="contact-content">
-                <p>Have feedback, suggestions, or found a bug?</p>
-                <p>We'd love to hear from you! Please send an email to:</p>
-                <p><a href="mailto:sporadicallyintelligent@gmail.com" class="contact-email-link">sporadicallyintelligent@gmail.com</a></p>
-            </div>
-        </div>
 
     <div id="modal-overlay" class="modal-overlay">
         <div id="stats-modal" class="modal">
