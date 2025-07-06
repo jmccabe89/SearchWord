@@ -6,6 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>SearchWord</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Link styling for dark mode modals */
+        body:not(.light-mode) .modal a {
+            color: #8ab4f8; /* A pleasant light blue for dark backgrounds */
+            text-decoration: underline;
+        }
+
+        body:not(.light-mode) .modal a:hover,
+        body:not(.light-mode) .modal a:focus {
+            color: #a1c9ff; /* A slightly brighter blue on hover/focus */
+        }
+    </style>
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Press+Start+2P&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="icon" href="favicon.png?" type="image/png">
     <!-- Icon for "Add to Home Screen" on iOS and other mobile devices -->
@@ -78,6 +90,7 @@
                 <li><a href="#" id="menu-share">Share</a></li>
                 <li><a href="#" id="menu-settings">Settings</a></li>
                 <li><a href="#" id="menu-about">About</a></li>
+                <li><a href="#" id="menu-contact">Contact</a></li>
             </ul>
         </nav>
         <div id="donate-button-container" style="padding: 20px; text-align: center;">
@@ -110,6 +123,16 @@
                         Used to filter out inappropriate words from the game.
                     </p>
                 <p>This game is not affiliated with or endorsed by the above API providers.</p>
+            </div>
+        </div>
+
+        <div id="contact-modal" class="modal" style="z-index: 1200;">
+            <button id="close-contact-modal" class="icon-button close-modal">&times;</button>
+            <h2>Contact Us</h2>
+            <div class="contact-content">
+                <p>Have feedback, suggestions, or found a bug?</p>
+                <p>We'd love to hear from you! Please send an email to:</p>
+                <p><a href="mailto:sporadicallyintelligent@gmail.com" class="contact-email-link">sporadicallyintelligent@gmail.com</a></p>
             </div>
         </div>
 
@@ -170,6 +193,14 @@
             <div class="setting-item">
                 <label for="theme-toggle">Light Mode</label>
                 <label class="switch"><input type="checkbox" id="theme-toggle"><span class="slider round"></span></label>
+            </div>
+            <div class="setting-item">
+                <label for="eye-comfort-toggle">Eye Comfort Mode (Grid)</label>
+                <label class="switch"><input type="checkbox" id="eye-comfort-toggle"><span class="slider round"></span></label>
+            </div>
+            <div class="setting-item" data-mobile-only>
+                <label for="large-cells-toggle">Large Grid Cells (Mobile Only)</label>
+                <label class="switch"><input type="checkbox" id="large-cells-toggle"><span class="slider round"></span></label>
             </div>
             <div class="setting-item danger-zone">
                 <p>Clear all your saved progress and stats. This cannot be undone.</p>

@@ -1,4 +1,44 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Global Backup Word List (Shared) ---
+    let globalBackupWordList = new Set();
+    async function loadGlobalBackupWordList() {
+        try {
+            const resp = await fetch('backup-words.txt', {cache: 'reload'});
+            if (resp.ok) {
+                const text = await resp.text();
+                globalBackupWordList = new Set(
+                    text.split(/\r?\n/)
+                        .map(w => w.trim().toUpperCase())
+                        .filter(w => w.length > 0 && !w.startsWith('#'))
+                );
+                console.log('Loaded global backup word list:', globalBackupWordList.size, 'words');
+            } else {
+                console.warn('Could not load backup-words.txt');
+            }
+        } catch (e) {
+            console.warn('Error loading backup-words.txt:', e);
+        }
+    }
+    loadGlobalBackupWordList();
+
+    // --- Backup Word List for Manual Additions (Encapsulated, Local Only) ---
+    const LOCAL_STORAGE_BACKUP_WORD_LIST_KEY = 'seededLetterGridBackupWordList';
+    let backupWordList = new Set();
+    function loadBackupWordList() {
+        const saved = localStorage.getItem(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY);
+        if (saved) {
+            try {
+                backupWordList = new Set(JSON.parse(saved));
+            } catch (e) {
+                backupWordList = new Set();
+            }
+        }
+    }
+    function saveBackupWordList() {
+        localStorage.setItem(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY, JSON.stringify(Array.from(backupWordList)));
+    }
+    loadBackupWordList();
+    // ...existing code...
     // --- Large Grid Cells (Mobile) Setting ---
     const LOCAL_STORAGE_LARGE_CELLS_KEY = 'seededLetterGridLargeCells';
     const largeCellsToggle = document.getElementById('large-cells-toggle');
@@ -185,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSettingsModalButton = document.getElementById('close-settings-modal');
     const themeToggleButton = document.getElementById('theme-toggle');
     const deleteDataButton = document.getElementById('delete-data-button');
+    const eyeComfortToggle = document.getElementById('eye-comfort-toggle');
 
     // Notification Modal Elements
     const notificationModal = document.getElementById('notification-modal');
@@ -199,6 +240,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const rulesDotsContainer = document.getElementById('rules-dots');
     const rulesBackButton = document.getElementById('rules-back-button');
     const rulesForwardButton = document.getElementById('rules-forward-button');
+
+    // Contact Modal Elements
+    const menuContactButton = document.getElementById('menu-contact');
+    const contactModal = document.getElementById('contact-modal');
+    const closeContactModalButton = document.getElementById('close-contact-modal');
 
     let currentGrid = [];
     let modalStack = [];
@@ -234,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY = 'seededLetterGridGlobalLongestWordLength';
     const LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY = 'seededLetterGridGlobalLongestWord';
     const LOCAL_STORAGE_THEME_KEY = 'seededLetterGridTheme';
+    const LOCAL_STORAGE_EYE_COMFORT_KEY = 'seededLetterGridEyeComfort';
     const LOCAL_STORAGE_TIME_REMAINING_KEY = 'seededLetterGridTimeRemaining';
     const LOCAL_STORAGE_FOUND_PATHS_KEY = 'seededLetterGridFoundPaths';
     const LOCAL_STORAGE_RULES_SEEN_KEY = 'seededLetterGridRulesSeen';
@@ -398,7 +445,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showNotificationModal(title, message) {
         notificationTitle.textContent = title;
-        notificationMessage.textContent = message;
+        // Allow HTML in the message (for mailto link)
+        notificationMessage.innerHTML = message;
         showModal(notificationModal);
     }
 
@@ -693,11 +741,64 @@ document.addEventListener('DOMContentLoaded', () => {
         verifyButton.classList.add('verifying');
         verifyButton.disabled = true;
 
-        const isValid = await checkWordWithAPI(word);
+
+        let isValid = await checkWordWithAPI(word);
+
+        // If not valid by API, check global backup list
+        if (!isValid && globalBackupWordList.has(word)) {
+            isValid = true;
+            console.log(`Word "${word}" accepted from global backup list.`);
+        }
+        // If not valid by API or global, check local backup list
+        if (!isValid && backupWordList.has(word)) {
+            isValid = true;
+            console.log(`Word "${word}" accepted from local backup list.`);
+        }
 
         verifyButton.classList.remove('verifying');
         verifyButton.disabled = false;
 
+        // --- Track failed attempts for this word ---
+        const FAILED_ATTEMPTS_KEY = 'seededLetterGridFailedAttempts';
+        let failedAttempts = JSON.parse(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '{}');
+        if (!isValid) {
+            // Track consecutive failed attempts for this word
+            const lastFailedWord = localStorage.getItem('seededLetterGridLastFailedWord') || '';
+            let consecutiveFails = parseInt(localStorage.getItem('seededLetterGridConsecutiveFails') || '0', 10);
+            if (lastFailedWord === word) {
+                consecutiveFails++;
+            } else {
+                consecutiveFails = 1;
+            }
+            localStorage.setItem('seededLetterGridLastFailedWord', word);
+            localStorage.setItem('seededLetterGridConsecutiveFails', consecutiveFails.toString());
+            // Also track total fails for stats (optional, can be removed)
+            failedAttempts[word] = (failedAttempts[word] || 0) + 1;
+            localStorage.setItem(FAILED_ATTEMPTS_KEY, JSON.stringify(failedAttempts));
+            // Always show the normal rejection feedback first
+            shakeElement(currentWordDisplay);
+            currentWordDisplay.classList.add('error');
+            setTimeout(() => {
+                currentWordDisplay.classList.remove('error');
+                clearWordPath();
+                // After the normal rejection, show the contact modal if this is the 2nd consecutive failure
+                if (consecutiveFails === 2) {
+                    showNotificationModal(
+                        "Word Not Recognized",
+                        `If you believe <b>${word}</b> is a valid English word, please <a href="mailto:sporadicallyintelligent@gmail.com?subject=SearchWord%20Backup%20Word%20Suggestion&body=Please%20add%20the%20word%20${encodeURIComponent(word)}%20to%20the%20backup%20list." target="_blank" rel="noopener">email the developer</a> and it may be added to the backup list!`
+                    );
+                }
+            }, 500);
+            return;
+        }
+        // Reset consecutive fail tracking on success
+        localStorage.removeItem('seededLetterGridLastFailedWord');
+        localStorage.removeItem('seededLetterGridConsecutiveFails');
+        // If valid, clear failed attempts for this word
+        if (failedAttempts[word]) {
+            delete failedAttempts[word];
+            localStorage.setItem(FAILED_ATTEMPTS_KEY, JSON.stringify(failedAttempts));
+        }
         if (isValid) {
             // New API-based check for inappropriate words
             const isProfane = await isWordInappropriate(word);
@@ -941,14 +1042,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         scales: {
                             x: {
                                 title: { display: true, text: 'Number of Letters' },
-                                ticks: { color: '#fff' },
-                                grid: { color: 'rgba(255,255,255,0.1)' }
+                                ticks: {
+                                    color: document.body.classList.contains('light-mode') ? '#222' : '#fff'
+                                },
+                                grid: {
+                                    color: document.body.classList.contains('light-mode') ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'
+                                }
                             },
                             y: {
                                 title: { display: true, text: 'Number of Words' },
                                 beginAtZero: true,
-                                ticks: { color: '#fff', precision: 0 },
-                                grid: { color: 'rgba(255,255,255,0.1)' }
+                                ticks: {
+                                    color: document.body.classList.contains('light-mode') ? '#222' : '#fff',
+                                    precision: 0
+                                },
+                                grid: {
+                                    color: document.body.classList.contains('light-mode') ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'
+                                }
                             }
                         }
                     }
@@ -992,8 +1102,9 @@ document.addEventListener('DOMContentLoaded', () => {
             globalLongestWordFound = savedGlobalLongestWord;
         }
 
+        // Only reset daily progress if the date has changed (not on viewport/device change)
         if (savedDateSeed !== currentDateSeed) {
-            console.log("New day detected or no saved daily game. Starting daily progress fresh, retaining global longest word.");
+            // Only clear daily progress, not global stats or settings
             localStorage.removeItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
             localStorage.removeItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
             localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
@@ -1009,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             longestWordLength = 0;
             dailyLongestWordFound = '';
             foundWordPaths = [];
-            wordList.innerHTML = ''; 
+            wordList.innerHTML = '';
             if (modalWordList) {
                 modalWordList.innerHTML = '';
             }
@@ -1076,6 +1187,24 @@ document.addEventListener('DOMContentLoaded', () => {
         applyTheme(savedTheme);
         if (themeToggleButton) {
             themeToggleButton.checked = (savedTheme === 'light');
+        }
+    }
+
+    // --- Eye Comfort Mode ---
+    function applyEyeComfortMode(isComfort) {
+        if (isComfort) {
+            document.body.classList.add('eye-comfort-mode');
+        } else {
+            document.body.classList.remove('eye-comfort-mode');
+        }
+        console.log(`Eye Comfort Mode applied: ${isComfort}`);
+    }
+
+    function loadEyeComfortMode() {
+        const savedComfortMode = localStorage.getItem(LOCAL_STORAGE_EYE_COMFORT_KEY) === 'true';
+        applyEyeComfortMode(savedComfortMode);
+        if (eyeComfortToggle) {
+            eyeComfortToggle.checked = savedComfortMode;
         }
     }
 
@@ -1411,12 +1540,18 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal(rulesModal);
     });
 
+    menuContactButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        showModal(contactModal);
+    });
+
     closeStatsModalButton.addEventListener('click', hideActiveModal);
     closeDefinitionModalButton.addEventListener('click', hideActiveModal);
     closeShareModalButton.addEventListener('click', hideActiveModal);
     closeSettingsModalButton.addEventListener('click', hideActiveModal);
     closeNotificationModalButton.addEventListener('click', hideActiveModal);
     closeRulesModalButton.addEventListener('click', hideActiveModal);
+    closeContactModalButton.addEventListener('click', hideActiveModal);
 
     if (rulesBackButton) {
         rulesBackButton.addEventListener('click', () => {
@@ -1439,6 +1574,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const newTheme = themeToggleButton.checked ? 'light' : 'dark';
             applyTheme(newTheme);
             localStorage.setItem(LOCAL_STORAGE_THEME_KEY, newTheme);
+        });
+    }
+
+    if (eyeComfortToggle) {
+        eyeComfortToggle.addEventListener('change', () => {
+            const isComfort = eyeComfortToggle.checked;
+            applyEyeComfortMode(isComfort);
+            localStorage.setItem(LOCAL_STORAGE_EYE_COMFORT_KEY, isComfort.toString());
         });
     }
 
@@ -1480,19 +1623,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Use the modern Web Share API on supported devices (like iOS)
         if (navigator.share) {
-            navigator.share({
-                title: 'SearchWord Game Score',
-                text: shareData.text,
-                url: shareData.url
-            }).then(() => {
-                console.log('Shared successfully via Web Share API.');
-                hideActiveModal(); // Close the share modal on success
-            }).catch((error) => {
-                // The user may have cancelled the share action, which is not an error.
-                if (error.name !== 'AbortError') {
-                    console.error('Error with Web Share API:', error);
-                    showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
-                }
+            // Also copy the text to the clipboard for convenience.
+            navigator.clipboard.writeText(shareData.text).then(() => {
+                // On successful copy, show a confirmation message.
+                showNotificationModal(
+                    "Score Copied!", 
+                    "Your score has been copied. The share dialog will open shortly."
+                );
+            }).catch(err => {
+                // If copy fails, show a slightly different message.
+                console.error('Clipboard copy failed:', err);
+                showNotificationModal(
+                    "Preparing Share", 
+                    "Your score is being prepared. The share dialog will open shortly."
+                );
+            }).finally(() => {
+                // Regardless of copy success, proceed with the share sheet after a delay.
+                setTimeout(() => {
+                    hideActiveModal(); // Hides the notification, share modal becomes visible again.
+
+                    navigator.share({
+                        title: 'SearchWord Game Score',
+                        text: shareData.text,
+                        url: shareData.url
+                    }).then(() => {
+                        console.log('Shared successfully via Web Share API.');
+                        hideAllModals(); // Close the share modal on success.
+                    }).catch((error) => {
+                        if (error.name !== 'AbortError') {
+                            console.error('Error with Web Share API:', error);
+                            showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
+                        }
+                    });
+                }, 2000); // 2 second delay
             });
         } else {
             // Fallback for desktop browsers that don't support the Web Share API
@@ -1561,6 +1724,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initial Setup ---
     loadTheme();
+    loadEyeComfortMode();
     currentGrid = generateGrid();
     const isNewGame = !loadGameState(); // Check if it's a new game for the day.
     updateStatsDisplay();

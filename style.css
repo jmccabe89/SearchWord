@@ -77,6 +77,31 @@ body {
     overflow: hidden;
     user-select: none;
     transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition for theme change */
+    /* Subtle blue-ish metallic background effect */
+    background-image:
+        linear-gradient(135deg, #232a3b 0%, #2e3a4d 40%, #3a4a5e 70%, #4b5e7a 100%),
+        repeating-linear-gradient(120deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.03) 2px, transparent 8px, transparent 24px),
+        repeating-linear-gradient(60deg, rgba(0,60,255,0.04) 0px, rgba(0,60,255,0.02) 4px, transparent 16px, transparent 32px);
+    background-blend-mode: lighten, lighten, lighten;
+    z-index: 0;
+}
+
+body.light-mode {
+    /* Lighter blue-ish metallic effect for light mode */
+    background-image:
+        linear-gradient(135deg, #eaf1fa 0%, #c7d6ea 40%, #b3c6e0 70%, #a2b8d1 100%),
+        repeating-linear-gradient(120deg, rgba(255,255,255,0.13) 0px, rgba(255,255,255,0.07) 2px, transparent 8px, transparent 24px),
+        repeating-linear-gradient(60deg, rgba(0,60,255,0.06) 0px, rgba(0,60,255,0.03) 4px, transparent 16px, transparent 32px);
+    background-blend-mode: lighten, lighten, lighten;
+}
+
+body.eye-comfort-mode:not(.light-mode) {
+    /* Slightly dimmer blue-ish metallic effect for eye comfort mode */
+    background-image:
+        linear-gradient(135deg, #1a232b 0%, #223040 40%, #2a3a4a 70%, #34465a 100%),
+        repeating-linear-gradient(120deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.02) 2px, transparent 8px, transparent 24px),
+        repeating-linear-gradient(60deg, rgba(0,60,255,0.02) 0px, rgba(0,60,255,0.01) 4px, transparent 16px, transparent 32px);
+    background-blend-mode: lighten, lighten, lighten;
 }
 
 /* --- Game Container Layout - Fullscreen --- */
@@ -1213,6 +1238,28 @@ input:checked + .slider:before { transform: translateX(26px); }
     }
 }
 
+/* --- Eye Comfort Mode (Grid Specific) --- */
+/* These rules apply only when the body has the 'eye-comfort-mode' class */
+/* and will not affect light mode. */
+body:not(.light-mode).eye-comfort-mode #game-grid {
+    background-color: #202020; /* Darker grid gaps */
+}
+
+body:not(.light-mode).eye-comfort-mode .grid-cell {
+    background-color: #2a2a2a; /* Slightly lighter cell background */
+    color: #b0b0b0; /* Softer, less intense text color */
+}
+
+body:not(.light-mode).eye-comfort-mode .grid-cell:hover {
+    background-color: #3d3d3d; /* A corresponding hover color */
+}
+
+body:not(.light-mode).eye-comfort-mode .grid-cell.selected {
+    background-color: #4a7aab; /* A more muted, desaturated blue */
+    color: #e0e0e0; /* Lighter text on the muted blue for better readability */
+    box-shadow: 0 0 0 1px #4a7aab; /* Match the shadow to the new color */
+}
+
 /* About Modal Styles */
 .about-link {
     color: #1976d2;
@@ -1233,4 +1280,19 @@ body.dark-mode .about-link, .dark-mode .about-link {
 .about-content p {
     margin-top: 1.2em;
     margin-bottom: 1.2em;
+}
+
+/* Large Grid Cells toggle in settings modal */
+#settings-modal .setting-item {
+    margin-bottom: 1.2em;
+}
+
+/* Show large grid cells toggle only on mobile */
+#settings-modal .setting-item[data-mobile-only] {
+    display: none !important;
+}
+@media (max-width: 600px) {
+    #settings-modal .setting-item[data-mobile-only] {
+        display: flex !important;
+    }
 }

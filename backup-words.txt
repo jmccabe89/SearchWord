@@ -1,0 +1,10 @@
+# Global backup word list for SearchWord
+# One word per line, all uppercase. Lines starting with # are comments and ignored.
+MERCURY
+VENUS
+JUPITER
+SATURN
+URANUS
+NEPTUNE
+PLUTO
+SATAN
