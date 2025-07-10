@@ -1,9 +1,61 @@
+// --- Debug Logging Flag and Utility ---
+const DEBUG = false; // Set to true for development, false for production
+function debugLog(...args) {
+    if (DEBUG) console.log(...args);
+}
+// --- Utility: Toggle Selected Class on Grid Cell ---
+function toggleCellSelected(cellElement, isSelected) {
+    if (!cellElement) return;
+    if (isSelected) {
+        cellElement.classList.add('selected');
+    } else {
+        cellElement.classList.remove('selected');
+    }
+}
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Utility functions for Set <-> localStorage (word lists) ---
+    function setToLocalStorage(key, set) {
+        localStorage.setItem(key, JSON.stringify(Array.from(set)));
+    }
+    function getSetFromLocalStorage(key) {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try {
+                return new Set(JSON.parse(saved));
+            } catch (e) {
+                return new Set();
+            }
+        }
+        return new Set();
+    }
+
     // --- Global Backup Word List (Shared) ---
     let globalBackupWordList = new Set();
+
+    // --- Loading Indicator for Global Backup Word List ---
+    function showWordListLoading(show) {
+        let loadingEl = document.getElementById('word-list-loading');
+        if (show) {
+            if (!loadingEl) {
+                loadingEl = document.createElement('div');
+                loadingEl.id = 'word-list-loading';
+                loadingEl.textContent = 'Loading word list...';
+                loadingEl.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(0,0,0,0.4);color:#fff;font-size:1.5em;font-family:sans-serif;';
+                document.body.appendChild(loadingEl);
+            } else {
+                loadingEl.style.display = 'flex';
+            }
+        } else if (loadingEl) {
+            loadingEl.style.display = 'none';
+        }
+    }
+
     async function loadGlobalBackupWordList() {
+        // Fetch the backup word list from the local root folder
+        const GIST_URL = 'backup-words.txt';
+        showWordListLoading(true);
         try {
-            const resp = await fetch('backup-words.txt', {cache: 'reload'});
+            const resp = await fetch(GIST_URL, {cache: 'reload'});
             if (resp.ok) {
                 const text = await resp.text();
                 globalBackupWordList = new Set(
@@ -11,31 +63,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         .map(w => w.trim().toUpperCase())
                         .filter(w => w.length > 0 && !w.startsWith('#'))
                 );
-                console.log('Loaded global backup word list:', globalBackupWordList.size, 'words');
+                debugLog('Loaded global backup word list from Gist:', globalBackupWordList.size, 'words');
             } else {
-                console.warn('Could not load backup-words.txt');
+                if (DEBUG) console.warn('Could not load backup word list from Gist');
             }
         } catch (e) {
-            console.warn('Error loading backup-words.txt:', e);
+            if (DEBUG) console.warn('Error loading backup word list from Gist:', e);
+        } finally {
+            showWordListLoading(false);
         }
     }
     loadGlobalBackupWordList();
 
     // --- Backup Word List for Manual Additions (Encapsulated, Local Only) ---
     const LOCAL_STORAGE_BACKUP_WORD_LIST_KEY = 'seededLetterGridBackupWordList';
-    let backupWordList = new Set();
+    let backupWordList = getSetFromLocalStorage(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY);
     function loadBackupWordList() {
-        const saved = localStorage.getItem(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY);
-        if (saved) {
-            try {
-                backupWordList = new Set(JSON.parse(saved));
-            } catch (e) {
-                backupWordList = new Set();
-            }
-        }
+        backupWordList = getSetFromLocalStorage(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY);
     }
     function saveBackupWordList() {
-        localStorage.setItem(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY, JSON.stringify(Array.from(backupWordList)));
+        setToLocalStorage(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY, backupWordList);
     }
     loadBackupWordList();
     // ...existing code...
@@ -333,34 +380,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateCurrentWordDisplay() {
         const currentWord = currentWordPath.map(cell => cell.element.textContent).join('');
-        currentWordDisplay.textContent = currentWord;
-
-        // --- Dynamic Font Sizing Logic ---
-        // This ensures the text fits within the display without resizing the container.
-        
-        // 1. Reset font size to its default from CSS to start calculations.
-        currentWordDisplay.style.fontSize = ''; 
-
-        // 2. Get the computed font size in pixels and set a reasonable minimum.
-        const computedStyle = window.getComputedStyle(currentWordDisplay);
-        let currentFontSize = parseFloat(computedStyle.fontSize);
-        const minFontSize = 14; // Minimum font size in pixels.
-
-        // 3. Reduce font size until the text's scroll width is less than the element's visible width.
-        //    Also check scrollHeight against clientHeight to prevent vertical expansion.
-        while ((currentWordDisplay.scrollWidth > currentWordDisplay.clientWidth || currentWordDisplay.scrollHeight > currentWordDisplay.clientHeight) && currentFontSize > minFontSize) {
-            currentFontSize--; // Decrease by 1px.
-            currentWordDisplay.style.fontSize = `${currentFontSize}px`;
-        }
-
-        // Enable or disable action buttons based on whether a word is being formed.
-        const hasWord = currentWord.length > 0;
-        if (clearButton) {
-            clearButton.disabled = !hasWord;
-        }
-        if (verifyButton && !isTimeUp && !verifyButton.classList.contains('verifying')) {
-            verifyButton.disabled = !hasWord;
-        }
+        requestAnimationFrame(() => {
+            currentWordDisplay.textContent = currentWord;
+            // --- Dynamic Font Sizing Logic ---
+            // This ensures the text fits within the display without resizing the container.
+            // 1. Reset font size to its default from CSS to start calculations.
+            currentWordDisplay.style.fontSize = '';
+            // 2. Get the computed font size in pixels and set a reasonable minimum.
+            const computedStyle = window.getComputedStyle(currentWordDisplay);
+            let currentFontSize = parseFloat(computedStyle.fontSize);
+            const minFontSize = 14; // Minimum font size in pixels.
+            // 3. Reduce font size until the text's scroll width is less than the element's visible width.
+            //    Also check scrollHeight against clientHeight to prevent vertical expansion.
+            while ((currentWordDisplay.scrollWidth > currentWordDisplay.clientWidth || currentWordDisplay.scrollHeight > currentWordDisplay.clientHeight) && currentFontSize > minFontSize) {
+                currentFontSize--; // Decrease by 1px.
+                currentWordDisplay.style.fontSize = `${currentFontSize}px`;
+            }
+            // Enable or disable action buttons based on whether a word is being formed.
+            const hasWord = currentWord.length > 0;
+            if (clearButton) {
+                clearButton.disabled = !hasWord;
+            }
+            if (verifyButton && !isTimeUp && !verifyButton.classList.contains('verifying')) {
+                verifyButton.disabled = !hasWord;
+            }
+        });
     }
 
     function clearWordPath() {
@@ -372,55 +416,70 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         currentWordPath = [];
         updateCurrentWordDisplay();
-        console.log("Word path cleared.");
+        debugLog("Word path cleared.");
     }
 
     function isValidSelectionAttempt(targetRow, targetCol) {
         const cellKey = `${targetRow}_${targetCol}`;
+        // Prevent re-selecting a cell that's part of a found word
         if (permanentlyHighlightedCells.has(cellKey)) {
-            console.log(`Cell (${targetRow}, ${targetCol}) is part of a found word and cannot be re-selected.`);
+            debugLog(`Cell (${targetRow}, ${targetCol}) is part of a found word and cannot be re-selected.`);
             return false;
         }
 
+        // Prevent selecting the same cell twice in the current path (except for undo/backtracking)
         const isTargetInPath = currentWordPath.some(cell =>
             cell.row === targetRow && cell.col === targetCol
         );
 
+        // First cell can always be selected
         if (currentWordPath.length === 0) {
-            return true; 
+            return true;
         }
 
         const lastSelected = currentWordPath[currentWordPath.length - 1];
 
+        // Allow re-selecting the last cell (for deselection)
         if (lastSelected.row === targetRow && lastSelected.col === targetCol) {
-            return true; 
+            return true;
         }
 
+        // Allow backtracking to the previous cell (undo last move)
         if (currentWordPath.length > 1) {
             const secondToLast = currentWordPath[currentWordPath.length - 2];
             if (secondToLast && secondToLast.row === targetRow && secondToLast.col === targetCol) {
                 return true;
             }
         }
-        
+
+        // Prevent selecting any other cell already in the path
         if (isTargetInPath) {
             return false;
         }
 
+        // Only allow selection of adjacent cells (including diagonals)
         const sRow = lastSelected.row;
         const sCol = lastSelected.col;
-
         const rowDiff = Math.abs(sRow - targetRow);
         const colDiff = Math.abs(sCol - targetCol);
-
         return (rowDiff <= 1 && colDiff <= 1 && (rowDiff !== 0 || colDiff !== 0));
     }
 
+    // --- Animation Utility: Use requestAnimationFrame for shake effect ---
     function shakeElement(element) {
+        if (!element) return;
         element.classList.add('shake');
-        setTimeout(() => {
-            element.classList.remove('shake');
-        }, 300);
+        // Use requestAnimationFrame for smoother removal
+        let start;
+        function removeShake(timestamp) {
+            if (!start) start = timestamp;
+            if (timestamp - start >= 300) {
+                element.classList.remove('shake');
+            } else {
+                requestAnimationFrame(removeShake);
+            }
+        }
+        requestAnimationFrame(removeShake);
     }
 
     function showNotificationModal(title, message) {
@@ -431,34 +490,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Vignette Functions ---
+    // --- Vignette Animation: Use requestAnimationFrame for smooth UI update ---
+    let vignetteAnimationFrame = null;
     function updateVignetteVisibility() {
-        if (!gridPanel) return;
-    
-        const { scrollLeft, scrollTop, scrollWidth, scrollHeight, clientWidth, clientHeight } = gridPanel;
-        const scrollEndLeeway = 5; // Leeway of a few pixels for calculations
-    
-        // Toggle the 'hidden' class based on scroll position for each vignette element
-        vignetteTop.classList.toggle('hidden', scrollTop <= scrollEndLeeway);
-        vignetteBottom.classList.toggle('hidden', scrollTop >= scrollHeight - clientHeight - scrollEndLeeway);
-        vignetteLeft.classList.toggle('hidden', scrollLeft <= scrollEndLeeway);
-        vignetteRight.classList.toggle('hidden', scrollLeft >= scrollWidth - clientWidth - scrollEndLeeway);
-
-        isScrolling = false;
+        if (vignetteAnimationFrame) {
+            cancelAnimationFrame(vignetteAnimationFrame);
+        }
+        vignetteAnimationFrame = requestAnimationFrame(() => {
+            if (!gridPanel) return;
+            const { scrollLeft, scrollTop, scrollWidth, scrollHeight, clientWidth, clientHeight } = gridPanel;
+            const scrollEndLeeway = 5; // Leeway of a few pixels for calculations
+            vignetteTop.classList.toggle('hidden', scrollTop <= scrollEndLeeway);
+            vignetteBottom.classList.toggle('hidden', scrollTop >= scrollHeight - clientHeight - scrollEndLeeway);
+            vignetteLeft.classList.toggle('hidden', scrollLeft <= scrollEndLeeway);
+            vignetteRight.classList.toggle('hidden', scrollLeft >= scrollWidth - clientWidth - scrollEndLeeway);
+            isScrolling = false;
+            vignetteAnimationFrame = null;
+        });
     }
 
     // --- Path Drawing Functions ---
+    // --- Path Drawing: Use requestAnimationFrame for smoother SVG path updates ---
     function drawPath(path, cellSize, gap) {
         if (!path || path.length < 2 || !pathOverlay) return;
-
         const pathData = path.map((point, index) => {
             const x = (point.col * (cellSize + gap)) + (cellSize / 2);
             const y = (point.row * (cellSize + gap)) + (cellSize / 2);
             return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
         }).join(' ');
-
-        const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        pathElement.setAttribute('d', pathData);
-        pathOverlay.appendChild(pathElement);
+        requestAnimationFrame(() => {
+            const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            pathElement.setAttribute('d', pathData);
+            pathOverlay.appendChild(pathElement);
+        });
     }
 
     function redrawAllFoundPaths(cellSize, gap) {
@@ -503,9 +567,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Timer Functions ---
     function updateTimerDisplay() {
         if (!gameTimerDisplay) return;
-        const minutes = Math.floor(timeRemaining / 60);
-        const seconds = timeRemaining % 60;
-        gameTimerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        requestAnimationFrame(() => {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            gameTimerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        });
     }
 
     function stopTimer() {
@@ -614,14 +680,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleCellClick(event) {
         if (isTimeUp) {
-            console.log("Click prevented: Time is up.");
+            debugLog("Click prevented: Time is up.");
             shakeElement(event.target); // Shake the cell that was clicked
             return;
         }
 
         // Crucial check: only proceed with selection if no significant drag occurred
         if (isDraggingGrid) {
-            console.log("Click prevented: Grid was being dragged.");
+            debugLog("Click prevented: Grid was being dragged.");
             return; 
         }
 
@@ -632,7 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cellKey = `${row}_${col}`;
 
         if (permanentlyHighlightedCells.has(cellKey)) {
-            console.log(`Clicked cell (${row}, ${col}) is already part of a found word. Ignoring click.`);
+        debugLog(`Clicked cell (${row}, ${col}) is already part of a found word. Ignoring click.`);
             shakeElement(clickedCellElement);
             return;
         }
@@ -641,10 +707,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lastInPath && lastInPath.row === row && lastInPath.col === col) {
             const removedCell = currentWordPath.pop();
             if (removedCell.element) {
-                removedCell.element.classList.remove('selected');
+                toggleCellSelected(removedCell.element, false);
             }
             updateCurrentWordDisplay();
-            console.log(`Deselected last cell by clicking it again. Current path: ${currentWordPath.map(c => c.element.textContent).join('')}`);
+            debugLog(`Deselected last cell by clicking it again. Current path: ${currentWordPath.map(c => c.element.textContent).join('')}`);
             return;
         }
 
@@ -653,21 +719,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (secondToLast && secondToLast.row === row && secondToLast.col === col) {
                 const lastCell = currentWordPath.pop();
                 if (lastCell.element) {
-                    lastCell.element.classList.remove('selected');
+                    toggleCellSelected(lastCell.element, false);
                 }
                 updateCurrentWordDisplay();
-                console.log(`Deselected last cell by going back. Current path: ${currentWordPath.map(c => c.element.textContent).join('')}`);
+                debugLog(`Deselected last cell by going back. Current path: ${currentWordPath.map(c => c.element.textContent).join('')}`);
                 return;
             }
         }
         
         if (isValidSelectionAttempt(row, col)) {
-            clickedCellElement.classList.add('selected');
+            toggleCellSelected(clickedCellElement, true);
             currentWordPath.push({ row, col, element: clickedCellElement });
             updateCurrentWordDisplay();
-            console.log(`Path extended. Current word: ${currentWordPath.map(cell => cell.textContent).join('')}`);
+            debugLog(`Path extended. Current word: ${currentWordPath.map(cell => cell.textContent).join('')}`);
         } else {
-            console.log(`Invalid selection attempt for (${row}, ${col}). Path remains.`);
+            debugLog(`Invalid selection attempt for (${row}, ${col}). Path remains.`);
             shakeElement(clickedCellElement);
         }
     }
@@ -692,27 +758,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleVerifyClick() {
         if (isTimeUp) {
-            console.log("Verification prevented: Time is up.");
+            debugLog("Verification prevented: Time is up.");
             return;
         }
 
         const word = currentWordPath.map(cell => cell.element.textContent).join('').toUpperCase();
 
         if (word.length === 0) {
-            console.log("No word formed to verify.");
+            debugLog("No word formed to verify.");
             shakeElement(currentWordDisplay);
             return;
         }
 
         if (word.length < 3) {
-            console.log("Word too short. Must be at least 3 letters.");
+            debugLog("Word too short. Must be at least 3 letters.");
             shakeElement(currentWordDisplay);
             clearWordPath();
             return;
         }
 
         if (foundWords.has(word)) {
-            console.log(`Word "${word}" already found!`);
+            debugLog(`Word "${word}" already found!`);
             shakeElement(currentWordDisplay);
             clearWordPath();
             return;
@@ -727,12 +793,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // If not valid by API, check global backup list
         if (!isValid && globalBackupWordList.has(word)) {
             isValid = true;
-            console.log(`Word "${word}" accepted from global backup list.`);
+            debugLog(`Word "${word}" accepted from global backup list.`);
         }
         // If not valid by API or global, check local backup list
         if (!isValid && backupWordList.has(word)) {
             isValid = true;
-            console.log(`Word "${word}" accepted from local backup list.`);
+            debugLog(`Word "${word}" accepted from local backup list.`);
         }
 
         verifyButton.classList.remove('verifying');
@@ -798,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cellKey = `${cell.row}_${cell.col}`;
                 permanentlyHighlightedCells.add(cellKey);
                 if (cell.element) {
-                    cell.element.classList.add('selected');
+                    toggleCellSelected(cell.element, true);
                 }
             });
             totalWordsFound++;
@@ -1214,95 +1280,120 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderGrid(grid) {
+
+// --- Efficient Grid Rendering: Only update changed cells ---
+function renderGrid(grid) {
+    // Calculate cell and font sizes as before
+    const largeCells = getLargeCellsSetting();
+    const isMobileView = isMobile();
+    const MIN_CELL_SIZE = (largeCells && isMobileView) ? 48 : 35;
+    const MIN_FONT_SIZE = (largeCells && isMobileView) ? 30 : 22;
+    let cellSize = MIN_CELL_SIZE;
+    let fontSize = MIN_FONT_SIZE;
+    const availablePanelWidth = gridPanel.clientWidth;
+    const availablePanelHeight = gridPanel.clientHeight;
+    const idealCellSizeX = availablePanelWidth / GRID_SIZE;
+    const idealCellSizeY = availablePanelHeight / GRID_SIZE;
+    cellSize = Math.max(MIN_CELL_SIZE, Math.min(idealCellSizeX, idealCellSizeY));
+    fontSize = Math.max(MIN_FONT_SIZE, Math.floor(cellSize * 0.7));
+    currentCellSize = cellSize;
+
+    // Set transform origin and grid template as before
+    const targetRow = 20, targetCol = 20;
+    const originX = (targetCol * (cellSize + GRID_GAP)) + (cellSize / 2);
+    const originY = (targetRow * (cellSize + GRID_GAP)) + (cellSize / 2);
+    gameGridContainer.style.transformOrigin = `${originX}px ${originY}px`;
+    gameGridContainer.style.gridTemplateColumns = `repeat(${GRID_SIZE}, ${cellSize}px)`;
+    gameGridContainer.style.gridTemplateRows = `repeat(${GRID_SIZE}, ${cellSize}px)`;
+
+    // --- Efficient update: Only update changed cells ---
+    // If the grid is not present or the number of children is wrong, rebuild all
+    let needsFullRebuild = false;
+    if (gameGridContainer.children.length !== GRID_SIZE * GRID_SIZE) {
+        needsFullRebuild = true;
+    }
+
+    if (needsFullRebuild) {
         gameGridContainer.innerHTML = '';
-
         const fragment = document.createDocumentFragment();
-
-        // Large grid cells for mobile option
-        const largeCells = getLargeCellsSetting();
-        const isMobileView = isMobile();
-        const MIN_CELL_SIZE = (largeCells && isMobileView) ? 48 : 35; // 48px for large, 35px default
-        const MIN_FONT_SIZE = (largeCells && isMobileView) ? 30 : 22;
-
-        let cellSize = MIN_CELL_SIZE;
-        let fontSize = MIN_FONT_SIZE;
-
-        // Use the gridPanel's clientWidth/Height as the available space for calculations,
-        // as gridPanel is the scrolling container.
-        const availablePanelWidth = gridPanel.clientWidth;
-        const availablePanelHeight = gridPanel.clientHeight;
-
-        const idealCellSizeX = availablePanelWidth / GRID_SIZE;
-        const idealCellSizeY = availablePanelHeight / GRID_SIZE;
-
-        // Prioritize MIN_CELL_SIZE to ensure overflow.
-        // If the ideal size for fitting is less than MIN_CELL_SIZE, use MIN_CELL_SIZE.
-        // Otherwise, use the smaller of the two ideal sizes to fit best.
-        cellSize = Math.max(MIN_CELL_SIZE, Math.min(idealCellSizeX, idealCellSizeY));
-        fontSize = Math.max(MIN_FONT_SIZE, Math.floor(cellSize * 0.7)); // Further increased font size relative to cell size
-        currentCellSize = cellSize; // Store for use outside this function
-
-        // --- DYNAMIC TRANSFORM ORIGIN ---
-        // To make the zoom effect originate from the center of the viewport,
-        // we set the transform-origin to the coordinates of the cell we are centering on.
-        const targetRow = 20; // The row to center on (0-indexed)
-        const targetCol = 20; // The column to center on (0-indexed)
-        const originX = (targetCol * (cellSize + GRID_GAP)) + (cellSize / 2);
-        const originY = (targetRow * (cellSize + GRID_GAP)) + (cellSize / 2);
-        gameGridContainer.style.transformOrigin = `${originX}px ${originY}px`;
-
-        // Apply calculated sizes to the grid container
-        gameGridContainer.style.gridTemplateColumns = `repeat(${GRID_SIZE}, ${cellSize}px)`;
-        gameGridContainer.style.gridTemplateRows = `repeat(${GRID_SIZE}, ${cellSize}px)`;
-        
-        grid.forEach((rowArray, rowIndex) => {
-            rowArray.forEach((cellData, colIndex) => {
+        for (let rowIndex = 0; rowIndex < GRID_SIZE; rowIndex++) {
+            for (let colIndex = 0; colIndex < GRID_SIZE; colIndex++) {
+                const cellData = grid[rowIndex][colIndex];
                 const cellElement = document.createElement('div');
                 cellElement.classList.add('grid-cell');
                 cellElement.textContent = cellData;
                 cellElement.dataset.row = rowIndex;
                 cellElement.dataset.col = colIndex;
-                cellElement.style.fontSize = `${fontSize}px`; // Apply calculated font size
-
+                cellElement.style.fontSize = `${fontSize}px`;
                 const cellKey = `${rowIndex}_${colIndex}`;
                 if (permanentlyHighlightedCells.has(cellKey)) {
-                    cellElement.classList.add('selected');
+                    toggleCellSelected(cellElement, true);
                 }
-
-                // Add mousedown listener for selection, but only if not dragging
                 cellElement.addEventListener('mousedown', (e) => {
-                    e.preventDefault(); // Prevent default browser drag/text selection for cells
+                    e.preventDefault();
                 });
-                cellElement.addEventListener('mouseup', handleCellClick); // Attach handler to mouseup
+                cellElement.addEventListener('mouseup', handleCellClick);
                 fragment.appendChild(cellElement);
-            });
-        });
-
-        gameGridContainer.appendChild(fragment);
-
-        // Set the size of the SVG overlay to match the grid's full scrollable size
-        if (pathOverlay) {
-            const totalGridSize = GRID_SIZE * cellSize + (GRID_SIZE - 1) * GRID_GAP;
-            pathOverlay.setAttribute('viewBox', `0 0 ${totalGridSize} ${totalGridSize}`);
-            pathOverlay.style.width = `${totalGridSize}px`;
-            pathOverlay.style.height = `${totalGridSize}px`;
-            redrawAllFoundPaths(cellSize, GRID_GAP);
+            }
         }
+        gameGridContainer.appendChild(fragment);
+    } else {
+        // Only update changed cells
+        for (let rowIndex = 0; rowIndex < GRID_SIZE; rowIndex++) {
+            for (let colIndex = 0; colIndex < GRID_SIZE; colIndex++) {
+                const idx = rowIndex * GRID_SIZE + colIndex;
+                const cellElement = gameGridContainer.children[idx];
+                const cellData = grid[rowIndex][colIndex];
+                // Update text if needed
+                if (cellElement.textContent !== cellData) {
+                    cellElement.textContent = cellData;
+                }
+                // Update font size
+                cellElement.style.fontSize = `${fontSize}px`;
+                // Update selected state
+                const cellKey = `${rowIndex}_${colIndex}`;
+                if (permanentlyHighlightedCells.has(cellKey)) {
+                    toggleCellSelected(cellElement, true);
+                } else {
+                    toggleCellSelected(cellElement, false);
+                }
+                // Update data attributes if needed
+                if (cellElement.dataset.row != rowIndex) cellElement.dataset.row = rowIndex;
+                if (cellElement.dataset.col != colIndex) cellElement.dataset.col = colIndex;
+            }
+        }
+    }
 
-        clearWordPath(); 
-        centerGridInView(cellSize, GRID_GAP);
+    // Set the size of the SVG overlay to match the grid's full scrollable size
+    if (pathOverlay) {
+        const totalGridSize = GRID_SIZE * cellSize + (GRID_SIZE - 1) * GRID_GAP;
+        pathOverlay.setAttribute('viewBox', `0 0 ${totalGridSize} ${totalGridSize}`);
+        pathOverlay.style.width = `${totalGridSize}px`;
+        pathOverlay.style.height = `${totalGridSize}px`;
+        redrawAllFoundPaths(cellSize, GRID_GAP);
+    }
 
-        // Log dimensions after rendering to confirm overflow
-        console.log(`Grid Panel Dimensions (Viewport): clientWidth=${gridPanel.clientWidth}px, clientHeight=${gridPanel.clientHeight}px`);
-        console.log(`Game Grid Dimensions (Content): scrollWidth=${gameGridContainer.scrollWidth}px, scrollHeight=${gameGridContainer.scrollHeight}px`);
+    clearWordPath();
+    centerGridInView(cellSize, GRID_GAP);
+
+    // Log dimensions after rendering to confirm overflow
+    console.log(`Grid Panel Dimensions (Viewport): clientWidth=${gridPanel.clientWidth}px, clientHeight=${gridPanel.clientHeight}px`);
+    console.log(`Game Grid Dimensions (Content): scrollWidth=${gameGridContainer.scrollWidth}px, scrollHeight=${gameGridContainer.scrollHeight}px`);
+}
+
+    // --- Debounced Resize Handler (more robust, reusable) ---
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
     }
 
     function handleResize() {
-        clearTimeout(window.resizeTimeout);
-        window.resizeTimeout = setTimeout(() => {
-            renderGrid(currentGrid);
-        }, 100);
+        renderGrid(currentGrid);
+        updateStatsDisplay();
+        updateVignetteVisibility();
     }
 
     // --- Grid Drag Scrolling Logic ---
@@ -1716,7 +1807,8 @@ document.addEventListener('DOMContentLoaded', () => {
         handleTimeUp(); // Ensure UI is in "time up" state
     }
     
-    window.addEventListener('resize', handleResize);
+    // Use debounced handler for resize
+    window.addEventListener('resize', debounce(handleResize, 150));
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Re-render the grid on window.load. This ensures that the grid is built

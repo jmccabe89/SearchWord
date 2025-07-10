@@ -97,11 +97,14 @@ body.light-mode {
 
 body.eye-comfort-mode:not(.light-mode) {
     /* Slightly dimmer blue-ish metallic effect for eye comfort mode */
+    background-color: #1a232b; /* fallback for eye comfort mode, less harsh than black */
     background-image:
         linear-gradient(135deg, #1a232b 0%, #223040 40%, #2a3a4a 70%, #34465a 100%),
         repeating-linear-gradient(120deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.02) 2px, transparent 8px, transparent 24px),
         repeating-linear-gradient(60deg, rgba(0,60,255,0.02) 0px, rgba(0,60,255,0.01) 4px, transparent 16px, transparent 32px);
     background-blend-mode: lighten, lighten, lighten;
+    --grid-gap-bg: transparent;
+    --grid-gap-bg: transparent; /* Make grid gaps transparent in eye comfort mode */
 }
 
 /* --- Game Container Layout - Fullscreen --- */
@@ -1242,7 +1245,7 @@ input:checked + .slider:before { transform: translateX(26px); }
 /* These rules apply only when the body has the 'eye-comfort-mode' class */
 /* and will not affect light mode. */
 body:not(.light-mode).eye-comfort-mode #game-grid {
-    background-color: #202020; /* Darker grid gaps */
+    background-color: transparent; /* Let the eye comfort gradient show through */
 }
 
 body:not(.light-mode).eye-comfort-mode .grid-cell {
