@@ -35,23 +35,35 @@
     <style>
         /* Link styling for dark mode modals */
         body:not(.light-mode) .modal a {
-            color: #8ab4f8; /* A pleasant light blue for dark backgrounds */
+            color: #8ab4f8;
             text-decoration: underline;
         }
-
         body:not(.light-mode) .modal a:hover,
         body:not(.light-mode) .modal a:focus {
-            color: #a1c9ff; /* A slightly brighter blue on hover/focus */
+            color: #a1c9ff;
+        }
+        /* Hide AdSense containers if in iframe */
+        body.in-iframe .adsbygoogle {
+            display: none !important;
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Press+Start+2P&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="icon" href="favicon.png?" type="image/png">
-    <!-- Icon for "Add to Home Screen" on iOS and other mobile devices -->
     <link rel="apple-touch-icon" href="favicon.png?">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9410743854803962"
-     crossorigin="anonymous"></script>
     <!-- Chart.js CDN for word length chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      // Disable AdSense if running in an iframe
+      if (window.self === window.top) {
+        var adsenseScript = document.createElement('script');
+        adsenseScript.async = true;
+        adsenseScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9410743854803962';
+        adsenseScript.crossOrigin = 'anonymous';
+        document.head.appendChild(adsenseScript);
+      } else {
+        document.body.classList.add('in-iframe');
+      }
+    </script>
 </head>
 <body>
     <div class="game-container">
