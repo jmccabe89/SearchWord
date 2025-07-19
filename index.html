@@ -68,6 +68,7 @@
 <body>
     <div class="game-container">
         <header class="header-panel">
+            <div class="title-glow"></div>
             <button id="hamburger-menu" class="icon-button">&#9776;</button>
             <h1>SearchWord</h1>
             <div id="game-timer" class="game-timer">15:00</div>
@@ -106,6 +107,7 @@
                     <span class="stat-item">Words found: <span id="total-words-found-panel">0</span></span>
                     <span class="stat-item">Longest word: <span id="longest-word-length-panel">0</span></span>
                 </div>
+                <div id="score-display">Score: 0</div>
             </aside>
         </main>
     </div>
@@ -115,7 +117,7 @@
         <nav style="flex-grow: 1;">
             <ul>
                 <li><a href="#" id="menu-rules">How To Play</a></li>
-                <li><a href="#" id="menu-stats">Daily Stats</a></li>
+                <li><a href="#" id="menu-stats">Stats</a></li>
                 <li><a href="#" id="menu-share">Share</a></li>
                 <li><a href="#" id="menu-settings">Settings</a></li>
                 <li><a href="about.html">About</a></li>
@@ -143,11 +145,9 @@
     <div id="modal-overlay" class="modal-overlay">
         <div id="stats-modal" class="modal">
             <button id="close-stats-modal" class="icon-button close-modal">&times;</button>
-            <h2>Daily Stats</h2>
+            <h2>Stats</h2>
             <p>Words Found Today: <span id="total-words-found-modal">0</span></p>
             <p>Longest Word Today: <span id="longest-word-length-modal">0</span> Letters</p>
-            <h3>All-Time Longest Word:</h3>
-            <p id="longest-word" class="longest-word">N/A</p>
             <div id="stats-chart-section">
                 <h3>Word Length Distribution</h3>
                 <!-- Word Length Chart Container -->
@@ -155,6 +155,11 @@
                     <canvas id="word-length-chart" style="background:var(--modal-bg,#fff);border-radius:8px;max-width:100%;height:220px;"></canvas>
                 </div>
             </div>
+            <h3>All-Time Longest Word</h3>
+            <p id="longest-word" class="longest-word">N/A</p>
+            <h3>Highest Score</h3>
+            <p id="global-highest-score-display" class="longest-word">0</p>
+            <div id="global-highest-score-modal"></div>
             <div class="modal-word-list-container">
                 <h3>Words Found Today</h3>
                 <ul id="modal-word-list" class="word-list"></ul>
@@ -206,6 +211,17 @@
                 <label for="large-cells-toggle">Large Grid Cells (Mobile Only)</label>
                 <label class="switch"><input type="checkbox" id="large-cells-toggle"><span class="slider round"></span></label>
             </div>
+            <div class="setting-item">
+                <label>Game Mode</label>
+                <div class="segmented-control" id="game-mode-selector">
+                    <input type="radio" id="mode-relaxed" name="game-mode" value="relaxed">
+                    <label for="mode-relaxed">Relaxed</label>
+                    <input type="radio" id="mode-standard" name="game-mode" value="standard" checked>
+                    <label for="mode-standard">Standard</label>
+                    <input type="radio" id="mode-challenging" name="game-mode" value="challenging">
+                    <label for="mode-challenging">Challenging</label>
+                </div>
+            </div>
             <div class="setting-item danger-zone">
                 <p>Clear all your saved progress and stats. This cannot be undone.</p>
                 <button id="delete-data-button" class="danger-button">Delete All Data</button>
@@ -216,6 +232,16 @@
             <button id="close-notification-modal" class="icon-button close-modal">&times;</button>
             <h2 id="notification-title">Notification</h2>
             <p id="notification-message"></p>
+        </div>
+
+        <div id="confirmation-modal" class="modal">
+            <!--<button class="icon-button close-modal">&times;</button>-->
+            <h2 id="confirmation-title">Confirm Action</h2>
+            <p id="confirmation-message" style="margin-bottom: 25px;"></p>
+            <div class="share-buttons">
+                <button id="confirm-yes-button" class="danger-button">Delete</button>
+                <button id="confirm-no-button" class="rules-nav-button" style="background-color: #6c757d; color: white;">Cancel</button>
+            </div>
         </div>
 
         <div id="rules-modal" class="modal">

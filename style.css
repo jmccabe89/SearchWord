@@ -133,6 +133,7 @@ body.eye-comfort-mode:not(.light-mode) {
     border-bottom: 2px solid var(--border-color);
     position: relative;
     transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+    overflow: visible; /* Allow glow to extend outside */
 }
 
 .header-panel h1 {
@@ -143,6 +144,8 @@ body.eye-comfort-mode:not(.light-mode) {
     overflow: hidden;
     text-overflow: ellipsis;
     padding-bottom: 0px;
+    position: relative;
+    z-index: 1;
 }
 
 .game-timer {
@@ -221,6 +224,30 @@ body.eye-comfort-mode:not(.light-mode) {
     overflow: hidden;
     border: 2px solid var(--border-color);
     transition: border-color 0.3s ease;
+}
+
+/* Common pseudo-element for edge glow */
+.grid-panel-wrapper::before {
+    content: "";
+    position: absolute;
+    left: -8px; top: -8px; right: -8px; bottom: -8px;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 18px;
+    box-shadow: 0 0 32px 12px transparent;
+    transition: box-shadow 0.3s;
+    opacity: 1;
+}
+
+/* Mode-specific vignette colors for grid-panel-wrapper */
+.grid-panel-wrapper.relaxed-glow {
+    --vignette-color: rgba(76, 255, 138, 0.25); /* More transparent green */
+}
+.grid-panel-wrapper.challenging-glow {
+    --vignette-color: rgba(255, 34, 34, 0.25); /* More transparent red */
+}
+.grid-panel-wrapper.standard-glow {
+    --vignette-color: rgba(79, 195, 255, 0.25); /* More transparent blue */
 }
 
 /* --- Vignette Overlays --- */
@@ -952,12 +979,17 @@ body.menu-open, body.modal-open {
     background-color: var(--danger-color);
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 10px 30px;
     border-radius: 5px;
     cursor: pointer;
     font-weight: bold;
+    font-size: 1.1em;
     transition: background-color 0.2s ease;
-    align-self: center;
+    min-width: 120px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center; /* This is for the settings modal layout */
 }
 
 .rules-nav-button {
@@ -967,6 +999,7 @@ body.menu-open, body.modal-open {
     padding: 10px 30px;
     font-size: 1.1em;
     border-radius: 5px;
+    font-weight: bold;
     cursor: pointer;
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
     min-width: 120px; /* Give it a consistent width */
@@ -1026,6 +1059,53 @@ body.menu-open, body.modal-open {
     font-size: 1.1em;
     color: var(--text-color);
     transition: color 0.3s ease;
+}
+
+/* --- Segmented Control for Settings (e.g., Game Mode) --- */
+.segmented-control {
+    display: flex;
+    border: 1px solid var(--accent-color);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0; /* Prevents control from shrinking on smaller screens */
+}
+
+.segmented-control input[type="radio"] {
+    display: none; /* Hide the actual radio button */
+}
+
+.segmented-control label {
+    padding: 8px 12px;
+    cursor: pointer;
+    text-align: center;
+    color: var(--accent-color);
+    font-size: 0.9em; /* Slightly smaller font to fit well */
+    transition: background-color 0.2s ease, color 0.2s ease;
+    border-right: 1px solid var(--border-color); /* Separator line */
+}
+
+.segmented-control label:last-of-type {
+    border-right: none;
+}
+
+.segmented-control input[type="radio"]:checked + label {
+    background-color: var(--accent-color);
+    color: var(--container-bg);
+}
+
+/* When checked, background matches vignette color (less vibrant green for relaxed) */
+.segmented-control input[type="radio"]:checked + label[for="mode-relaxed"] {
+    background-color: #38c97a; /* Less vibrant, deeper green */
+    color: #fff;
+    font-weight: bold; /* Slightly bolder for visibility */
+}
+.segmented-control input[type="radio"]:checked + label[for="mode-standard"] {
+    background-color: #4fc3ff;
+    color: #fff;
+}
+.segmented-control input[type="radio"]:checked + label[for="mode-challenging"] {
+    background-color: #ff2222;
+    color: #fff;
 }
 
 /* The switch - a wrapper for the checkbox */
@@ -1146,7 +1226,10 @@ input:checked + .slider:before { transform: translateX(26px); }
         border: none;
         border-bottom: 2px solid var(--border-color);
     }
-     
+    
+    .grid-panel.grabbing {
+    cursor: grabbing !important;
+}
 
     .side-panel {
         width: 100%;
@@ -1238,6 +1321,28 @@ input:checked + .slider:before { transform: translateX(26px); }
     }
     .current-word-display {
         font-size: 1.3em;
+    }
+    
+    /* On small screens, stack setting items vertically for better layout */
+    #settings-modal .setting-item {
+        flex-direction: column;
+        align-items: flex-start; /* Align labels to the left */
+        row-gap: 10px;
+    }
+    
+    /* Align toggle switches to the right on their own line */
+    #settings-modal .setting-item .switch {
+        align-self: flex-end;
+    }
+
+    /* Make the segmented control take the full width on its own line */
+    #settings-modal .setting-item .segmented-control {
+        width: 100%;
+    }
+
+    /* Make buttons inside the segmented control distribute evenly */
+    #settings-modal .segmented-control label {
+        flex-grow: 1;
     }
 }
 
@@ -1364,3 +1469,60 @@ body.dark-mode .about-link, .dark-mode .about-link {
     background-color: var(--accent-hover-color);
     color: var(--container-bg) !important;
 }
+
+/* Mode Indicator Styles */
+.mode-indicator {
+    display: inline-block;
+    margin-left: 12px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.95em;
+    font-weight: bold;
+    vertical-align: middle;
+    background: #333;
+    color: #fff;
+    letter-spacing: 0.5px;
+    transition: background 0.2s;
+}
+
+.header-panel {
+    position: relative;
+    overflow: visible;
+}
+
+/* --- Score Display Styling --- */
+#score-display {
+    display: block;
+    width: 100%;
+    background: transparent;
+    color: var(--accent-color);
+    font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
+    font-weight: bold;
+    font-size: 1.25em;
+    letter-spacing: 0.05em;
+    border: 2.5px solid var(--accent-color);
+    border-radius: 10px;
+    padding: 10px 0;
+    margin: 12px 0 12px 0;
+    box-shadow: 0 2px 8px rgba(44,44,44,0.10);
+    text-align: center;
+    transition: border-color 0.3s, color 0.3s;
+}
+
+body.light-mode #score-display {
+    background: transparent;
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+@media (max-width: 600px) {
+    #score-display {
+        font-size: 1.1em;
+        padding: 10px 0;
+        margin: 10px 0 14px 0;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(44,44,44,0.08);
+    }
+}
+
+/* No changes needed if you use class="longest-word" for the score display */

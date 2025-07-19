@@ -85,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setToLocalStorage(LOCAL_STORAGE_BACKUP_WORD_LIST_KEY, backupWordList);
     }
     loadBackupWordList();
-    // ...existing code...
     // --- Large Grid Cells (Mobile) Setting ---
     const LOCAL_STORAGE_LARGE_CELLS_KEY = 'seededLetterGridLargeCells';
     const largeCellsToggle = document.getElementById('large-cells-toggle');
@@ -105,7 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderGrid(currentGrid);
         });
     }
-    const GRID_SIZE = 50; // Number of rows/columns
+    // Determine grid size based on game mode setting in local storage.
+    const savedGridSize = localStorage.getItem('seededLetterGridSize');
+    // Use '40' for Challenging, '50' for Relaxed, 50 otherwise.
+    const GRID_SIZE = savedGridSize === '40' ? 40 : (savedGridSize === '50' ? 50 : 50); 
+    debugLog(`Grid size set to: ${GRID_SIZE}x${GRID_SIZE}`);
+
     const GRID_GAP = 2; // in pixels
 
     // --- Letter Frequency Data for Weighted Grid Generation ---
@@ -258,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleButton = document.getElementById('theme-toggle');
     const deleteDataButton = document.getElementById('delete-data-button');
     const eyeComfortToggle = document.getElementById('eye-comfort-toggle');
+    const gameModeSelector = document.getElementById('game-mode-selector');
 
     // Notification Modal Elements
     const notificationModal = document.getElementById('notification-modal');
@@ -265,6 +270,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationTitle = document.getElementById('notification-title');
     const notificationMessage = document.getElementById('notification-message');
 
+    // Confirmation Modal Elements
+    const confirmationModal = document.getElementById('confirmation-modal');
+    const confirmationTitle = document.getElementById('confirmation-title');
+    const confirmationMessage = document.getElementById('confirmation-message');
+    const confirmYesButton = document.getElementById('confirm-yes-button');
+    const closeConfirmationModalButton = document.querySelector('#confirmation-modal .close-modal');
+    const confirmNoButton = document.getElementById('confirm-no-button');
+    
     // Rules Modal Elements
     const rulesModal = document.getElementById('rules-modal');
     const closeRulesModalButton = document.getElementById('close-rules-modal');
@@ -287,17 +300,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let globalLongestWordLength = 0;
     let globalLongestWordFound = '';
     let currentCellSize = 0;
+    let currentGameMode = 'standard';
 
     // Timer state
-    const TIMER_DURATION = 15 * 60; // 15 minutes in seconds
-    //const TIMER_DURATION = 5; // 5 seconds
+    let TIMER_DURATION; // Set by initializeTimer based on game mode
+    //const TIMER_DURATION = 5; // 5 seconds for testing
     let timerInterval = null;
-    let timeRemaining = TIMER_DURATION;
+    let timeRemaining; // Set by initializeTimer or loadGameState
     let isTimeUp = false;
 
     const DICTIONARY_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
 
-    // Local Storage Keys
+    // --- Local Storage Keys ---
     const LOCAL_STORAGE_FOUND_WORDS_KEY = 'seededLetterGridFoundWords';
     const LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY = 'seededLetterGridHighlightedCells';
     const LOCAL_STORAGE_DATE_SEED_KEY = 'seededLetterGridDateSeed';
@@ -311,13 +325,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const LOCAL_STORAGE_TIME_REMAINING_KEY = 'seededLetterGridTimeRemaining';
     const LOCAL_STORAGE_FOUND_PATHS_KEY = 'seededLetterGridFoundPaths';
     const LOCAL_STORAGE_RULES_SEEN_KEY = 'seededLetterGridRulesSeen';
+    const LOCAL_STORAGE_GAME_MODE_KEY = 'seededLetterGridGameMode';
+    const LOCAL_STORAGE_GRID_SIZE_KEY = 'seededLetterGridSize';
 
     const gameRules = [
         "Find as many words as you can in the randomly-generated grid before the timer runs out.",
         "Select adjacent letters (horizontally, vertically, or diagonally) to form a word.",
         "Words must be at least 3 letters long.",
-        "You cannot use the same letter cell more than once.",
+        "You cannot use the same letter cell in more than one word at a time.",
+        "If you think you can use a letter in a better word, you can select the word to delete it.",
         "The timer stops counting down when you leave the page, so you can pace yourself over the course of the day.",
+        "If you want a more relaxed or challenging experience, you can switch the game mode in the settings.",
         "A new grid is generated everyday.  Come back each day and try to beat your score!"
     ];
     
@@ -331,7 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const year = today.getFullYear();
         const month = (today.getMonth() + 1).toString().padStart(2, '0');
         const day = today.getDate().toString().padStart(2, '0');
-        return parseInt(`${year}${month}${day}`, 10);
+        const gridSize = localStorage.getItem('seededLetterGridSize') || 50;
+        return parseInt(`${year}${month}${day}${gridSize}`, 10);
     }
 
     function createSeededRandom(seed) {
@@ -482,7 +501,59 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(removeShake);
     }
 
-    function showNotificationModal(title, message) {
+function calculateWordScore(word) {
+    // Score = sum of rarity scores for each letter + word length bonus
+    // Rarity score: (maxFreq - freq + 1), so rare letters get higher scores
+    // Normalize so E=1, Z=127 (or similar)
+    if (!word) return 0;
+    const maxFreq = Math.max(...Object.values(letterFrequencies));
+    let rarityScore = 0;
+    for (const char of word.toUpperCase()) {
+        const freq = letterFrequencies[char] || 1;
+        // Higher score for lower frequency
+        rarityScore += (maxFreq - freq + 1);
+    }
+    // Optionally add a small bonus for word length
+    return rarityScore + word.length;
+}
+
+let score = 0;
+let globalHighestScore = 0; // New global stat
+
+const LOCAL_STORAGE_GLOBAL_HIGHEST_SCORE_KEY = 'seededLetterGridGlobalHighestScore';
+const LOCAL_STORAGE_CURRENT_SCORE_KEY = 'seededLetterGridCurrentScore'; // Add this key
+
+function addWordToScore(word) {
+    if (!word) return;
+    score += calculateWordScore(word);
+    // Save score immediately after update
+    localStorage.setItem(LOCAL_STORAGE_CURRENT_SCORE_KEY, score.toString());
+    // Check for new highest score
+    if (score > globalHighestScore) {
+        globalHighestScore = score;
+        localStorage.setItem(LOCAL_STORAGE_GLOBAL_HIGHEST_SCORE_KEY, globalHighestScore.toString());
+        updateGlobalHighestScoreDisplay();
+    }
+    updateScoreDisplay();
+}
+
+function updateScoreDisplay() {
+    const scoreElement = document.getElementById('score-display');
+    if (scoreElement) {
+        // Always show 0 if score is 0 (after reset)
+        scoreElement.textContent = `Score: ${score === 0 ? 0 : score}`;
+    }
+    updateGlobalHighestScoreDisplay();
+}
+
+function updateGlobalHighestScoreDisplay() {
+    const globalScoreEl = document.getElementById('global-highest-score-display');
+    if (globalScoreEl) {
+        globalScoreEl.textContent = `${globalHighestScore}`;
+    }
+}
+
+    async function showNotificationModal(title, message) {
         notificationTitle.textContent = title;
         // Allow HTML in the message (for mailto link)
         notificationMessage.innerHTML = message;
@@ -566,6 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Timer Functions ---
     function updateTimerDisplay() {
+        if (currentGameMode === 'relaxed') return; // No timer in relaxed mode
         if (!gameTimerDisplay) return;
         requestAnimationFrame(() => {
             const minutes = Math.floor(timeRemaining / 60);
@@ -580,6 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleTimeUp() {
+        if (currentGameMode === 'relaxed') return; // No timer in relaxed mode
         stopTimer();
         isTimeUp = true;
         timeRemaining = 0;
@@ -609,6 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startTimer() {
+        if (currentGameMode === 'relaxed') return; // No timer in relaxed mode
         stopTimer(); // Ensure no multiple intervals are running
         timerInterval = setInterval(() => {
             timeRemaining--;
@@ -620,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleVisibilityChange() {
+        if (currentGameMode === 'relaxed') return; // No timer in relaxed mode
         if (document.hidden) {
             // Page is not visible, pause the timer and save the current time remaining.
             stopTimer();
@@ -678,6 +753,93 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDraggingGrid = false; 
     const DRAG_THRESHOLD = 5; // Minimum pixel movement to consider it a drag
 
+//closeConfirmationModalButton.addEventListener('click', hideActiveModal);
+
+function getWordFromPath(path) {
+        if (!path || path.length === 0 || !currentGrid || currentGrid.length === 0) return '';
+        return path.map(cellPos => currentGrid[cellPos.row][cellPos.col]).join('');
+    }
+    
+    function findWordPathForCell(row, col) {
+        for (let i = 0; i < foundWordPaths.length; i++) {
+            const path = foundWordPaths[i];
+            const cellInPath = path.some(cellPos => cellPos.row === row && cellPos.col === col);
+            if (cellInPath) {
+                const word = getWordFromPath(path);
+                return { word, path, pathIndex: i };
+            }
+        }
+        return null;
+    }
+
+    function showDeleteWordConfirmation(word, path, pathIndex) {
+        confirmationTitle.textContent = "Delete Word?";
+        confirmationMessage.innerHTML = `This letter has already been played in the word <b>${word}</b>. <br><br>Would you like to delete this word?`;
+    
+        // Use .onclick to easily overwrite previous listeners to avoid them stacking up.
+        confirmYesButton.onclick = () => {
+            deleteWord(word, path, pathIndex);
+            hideActiveModal();
+        };
+    
+        confirmNoButton.onclick = () => {
+            hideActiveModal();
+        };
+    
+        showModal(confirmationModal);
+    }
+
+    function deleteWord(word, path, pathIndex) {
+    debugLog(`Deleting word: ${word}`);
+
+    // 1. Remove from foundWords set
+    foundWords.delete(word.toUpperCase());
+
+    // --- SUBTRACT WORD SCORE ---
+    const wordScore = calculateWordScore(word);
+    score = Math.max(0, score - wordScore); // Prevent negative score
+    localStorage.setItem(LOCAL_STORAGE_CURRENT_SCORE_KEY, score.toString());
+    updateScoreDisplay();
+
+    // 2. Remove from foundWordPaths array
+    foundWordPaths.splice(pathIndex, 1);
+    
+        // 3. Rebuild permanentlyHighlightedCells from the remaining paths to handle overlaps
+        const allRemainingCells = new Set();
+        foundWordPaths.forEach(p => {
+            p.forEach(cellPos => {
+                allRemainingCells.add(`${cellPos.row}_${cellPos.col}`);
+            });
+        });
+        permanentlyHighlightedCells = allRemainingCells;
+    
+        // 4. Update UI
+        path.forEach(cellPos => {
+            const cellKey = `${cellPos.row}_${cellPos.col}`;
+            if (!permanentlyHighlightedCells.has(cellKey)) {
+                const cellElement = gameGridContainer.querySelector(`[data-row='${cellPos.row}'][data-col='${cellPos.col}']`);
+                if (cellElement) toggleCellSelected(cellElement, false);
+            }
+        });
+        const listItem = wordList.querySelector(`li[data-word='${word.toUpperCase()}']`);
+        if (listItem) listItem.remove();
+        if (modalWordList) {
+            const modalListItem = modalWordList.querySelector(`li[data-word='${word.toUpperCase()}']`);
+            if (modalListItem) modalListItem.remove();
+        }
+        redrawAllFoundPaths(currentCellSize, GRID_GAP);
+    
+        // 5. Update stats
+        totalWordsFound--;
+        if (dailyLongestWordFound.toUpperCase() === word.toUpperCase()) {
+            dailyLongestWordFound = '';
+            longestWordLength = 0;
+            foundWords.forEach(w => { if (w.length > longestWordLength) { longestWordLength = w.length; dailyLongestWordFound = w; } });
+        }
+        updateStatsDisplay();
+        saveGameState();
+    }
+
     function handleCellClick(event) {
         if (isTimeUp) {
             debugLog("Click prevented: Time is up.");
@@ -698,8 +860,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const cellKey = `${row}_${col}`;
 
         if (permanentlyHighlightedCells.has(cellKey)) {
-        debugLog(`Clicked cell (${row}, ${col}) is already part of a found word. Ignoring click.`);
-            shakeElement(clickedCellElement);
+            // --- Prevent deletion in challenging mode ---
+            if (currentGameMode === 'challenging') {
+                // Just shake the cell and do nothing else
+                shakeElement(clickedCellElement);
+                return;
+            }
+            // Find which word this cell belongs to
+            const pathInfo = findWordPathForCell(row, col);
+            if (pathInfo) {
+                const { word, path, pathIndex } = pathInfo;
+                showDeleteWordConfirmation(word, path, pathIndex);
+            } else {
+                // This case shouldn't happen if permanentlyHighlightedCells is consistent with foundWordPaths
+                debugLog(`Cell (${row}, ${col}) is highlighted but no path found. Inconsistency.`);
+                shakeElement(clickedCellElement);
+            }
             return;
         }
 
@@ -859,6 +1035,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Word "${word}" is valid!`);
             addWordToList(word);
 
+            // --- Ensure score is updated, SVG path is drawn, and word display is cleared ---
+            addWordToScore(word);
+
             foundWords.add(word);
             currentWordPath.forEach(cell => {
                 const cellKey = `${cell.row}_${cell.col}`;
@@ -871,7 +1050,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const simplifiedPath = currentWordPath.map(p => ({ row: p.row, col: p.col }));
             foundWordPaths.push(simplifiedPath);
+
             drawPath(simplifiedPath, currentCellSize, GRID_GAP);
+
+            // --- Clear the current word display immediately after adding ---
+            clearWordPath();
 
             if (word.length > longestWordLength) {
                 longestWordLength = word.length;
@@ -888,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentWordDisplay.classList.add('success');
             setTimeout(() => {
                 currentWordDisplay.classList.remove('success');
-                clearWordPath();
+                // clearWordPath(); // Already called above, so this is not needed
             }, 500); // Keep success color for 500ms
         } else {
             console.log(`Word "${word}" is not a valid word.`);
@@ -977,18 +1160,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getShareMessage() {
-        const numWords = totalWordsFound; // Use the already tracked variable
+    const numWords = totalWordsFound;
+    const modeMap = {
+        relaxed: "Relaxed",
+        challenging: "Challenging",
+        standard: "Standard"
+    };
+    const modeLabel = modeMap[currentGameMode] || "Standard";
+    const scoreValue = score || 0;
+    const highScore = scoreValue; // Only today's score
+    const longestWordPart = dailyLongestWordFound
+        ? `My longest word was "${dailyLongestWordFound}" (${longestWordLength} letters)`
+        : "I'm still searching for my longest word!";
+    const wordOrWords = numWords === 1 ? 'word' : 'words';
 
-        if (numWords === 0) {
-            return "I'm just getting started in today's SearchWord!";
-        }
-
-        // Use the already tracked longest word for the day. No need to recalculate.
-        const longestWordPart = `My longest word was ${dailyLongestWordFound} (${longestWordLength} letters).`;
-        const wordOrWords = numWords === 1 ? 'word' : 'words';
-
-        return `I found ${numWords} ${wordOrWords} in today's SearchWord! ${longestWordPart}`;
+    if (numWords === 0) {
+        return `Just started today's SearchWord!`;
     }
+
+    return `I found ${numWords} ${wordOrWords}, scored ${highScore}, and my longest word was "${dailyLongestWordFound}" (${longestWordLength} letters) in today's ${modeLabel} SearchWord. Try to beat my daily score!`;
+}
 
     function generateShareText() {
         const hashtag = "#SearchWordGame";
@@ -1130,6 +1321,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         localStorage.setItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY, globalLongestWordLength.toString());
         localStorage.setItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY, globalLongestWordFound);
+        localStorage.setItem(LOCAL_STORAGE_GLOBAL_HIGHEST_SCORE_KEY, globalHighestScore.toString());
+        localStorage.setItem(LOCAL_STORAGE_CURRENT_SCORE_KEY, score.toString()); // Save current score
 
         console.log("Game state saved to localStorage.");
     }
@@ -1140,6 +1333,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const savedGlobalLongestWordLength = localStorage.getItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY);
         const savedGlobalLongestWord = localStorage.getItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY);
+        const savedGlobalHighestScore = localStorage.getItem(LOCAL_STORAGE_GLOBAL_HIGHEST_SCORE_KEY);
+        const savedCurrentScore = localStorage.getItem(LOCAL_STORAGE_CURRENT_SCORE_KEY); // Load current score
 
         if (savedGlobalLongestWordLength && !isNaN(parseInt(savedGlobalLongestWordLength, 10))) {
             globalLongestWordLength = parseInt(savedGlobalLongestWordLength, 10);
@@ -1147,6 +1342,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (savedGlobalLongestWord) {
             globalLongestWordFound = savedGlobalLongestWord;
         }
+        if (savedGlobalHighestScore && !isNaN(parseInt(savedGlobalHighestScore, 10))) {
+            globalHighestScore = parseInt(savedGlobalHighestScore, 10);
+        }
+        if (savedCurrentScore && !isNaN(parseInt(savedCurrentScore, 10))) {
+            score = parseInt(savedCurrentScore, 10);
+        } else {
+            score = 0;
+        }
+        updateGlobalHighestScoreDisplay();
+        updateScoreDisplay();
 
         // Only reset daily progress if the date has changed (not on viewport/device change)
         if (savedDateSeed !== currentDateSeed) {
@@ -1202,41 +1407,28 @@ document.addEventListener('DOMContentLoaded', () => {
             foundWordPaths = JSON.parse(savedFoundPaths);
         }
 
-        // Handle the timer state for the current day
-        const savedTimeRemaining = localStorage.getItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
-        if (savedTimeRemaining !== null && !isNaN(parseInt(savedTimeRemaining, 10))) {
-            timeRemaining = parseInt(savedTimeRemaining, 10);
-            if (timeRemaining <= 0) {
-                timeRemaining = 0;
-                isTimeUp = true;
-            }
-        } else {
-            // No timer saved for today, so start a new one.
-            timeRemaining = TIMER_DURATION;
-        }
-
         return true;
     }
 
     // --- Theme Management ---
-    function applyTheme(theme) {
-        if (theme === 'light') {
-            document.body.classList.add('light-mode');
-        } else {
-            document.body.classList.remove('light-mode');
-        }
-        console.log(`Theme applied: ${theme}`);
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.body.classList.add('light-mode');
+    } else {
+        document.body.classList.remove('light-mode');
     }
+    console.log(`Theme applied: ${theme}`);
+}
 
-    function loadTheme() {
-        const savedTheme = localStorage.getItem(LOCAL_STORAGE_THEME_KEY) || 'dark'; // Default to dark
-        applyTheme(savedTheme);
-        if (themeToggleButton) {
-            themeToggleButton.checked = (savedTheme === 'light');
-        }
+function loadTheme() {
+    const savedTheme = localStorage.getItem(LOCAL_STORAGE_THEME_KEY) || 'dark'; // Default to dark
+    applyTheme(savedTheme);
+    if (themeToggleButton) {
+        themeToggleButton.checked = (savedTheme === 'light');
     }
+}
 
-    // --- Eye Comfort Mode ---
+// --- Eye Comfort Mode ---
     function applyEyeComfortMode(isComfort) {
         if (isComfort) {
             document.body.classList.add('eye-comfort-mode');
@@ -1254,15 +1446,138 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Game Mode Management ---
+    function saveGameMode(mode) {
+        localStorage.setItem(LOCAL_STORAGE_GAME_MODE_KEY, mode);
+        currentGameMode = mode;
+        console.log(`Game mode saved: ${mode}`);
+    }
+
+    function loadGameMode() {
+        const savedMode = localStorage.getItem(LOCAL_STORAGE_GAME_MODE_KEY) || 'standard';
+        currentGameMode = savedMode;
+        const radioToCheck = document.getElementById(`mode-${savedMode}`);
+        if (radioToCheck) {
+            radioToCheck.checked = true;
+        }
+        console.log(`Game mode loaded: ${currentGameMode}`);
+    }
+
+    function getGameModeDescription(mode) {
+    switch (mode) {
+        case 'relaxed':
+            return `<b>Relaxed Mode:</b> Take your time and enjoy searching for words with no ticking clock. The grid is big, so you can explore at your own pace!`;
+        case 'challenging':
+            return `<b>Challenging Mode:</b> Race against a shorter timer and a smaller grid. It's fast, intense, and perfect if you love a tough challenge!<br><br><span style="color:#c00;font-weight:bold;">Just a heads up: In Challenging Mode, once you play a word, it can't be deleted—so choose carefully!</span>`;
+        case 'standard':
+        default:
+            return `<b>Standard Mode:</b> The classic daily puzzle. Plenty of time and a big grid—great for casual play and improving your skills!`;
+    }
+}
+
+    function showGameModeChangeConfirmation(newMode) {
+        confirmationTitle.textContent = "Change Game Mode?";
+        confirmationMessage.innerHTML =
+            getGameModeDescription(newMode) +
+            "<br><br>Changing the game mode will restart the daily puzzle, and <b>all of today's progress will be lost.</b><br><br>Are you sure you want to continue?";
+        
+        confirmYesButton.textContent = "Confirm";
+        confirmYesButton.className = 'danger-button'; // Ensure it's the red, destructive action button
+
+        confirmNoButton.textContent = "Cancel";
+
+        confirmYesButton.onclick = () => {
+            saveGameMode(newMode);
+
+            // Only update vignette/glow here, after confirmation
+            updateGameModeIndicator(newMode);
+
+            // Reset daily score to 0 and update display immediately
+            score = 0;
+            localStorage.setItem(LOCAL_STORAGE_CURRENT_SCORE_KEY, "0");
+            const scoreElement = document.getElementById('score-display');
+            if (scoreElement) scoreElement.textContent = "Score: 0";
+
+            // Set timer duration for the selected mode
+            if (newMode === 'challenging') {
+                localStorage.removeItem('seededLetterGridTimerDuration');
+                localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+                localStorage.setItem('seededLetterGridTimerDuration', (10 * 60).toString()); // 10 minutes
+            } else if (newMode === 'relaxed') {
+                localStorage.removeItem('seededLetterGridTimerDuration');
+                localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+                localStorage.setItem('seededLetterGridTimerDuration', (20 * 60).toString());
+            } else {
+                localStorage.removeItem('seededLetterGridTimerDuration');
+                localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+                localStorage.setItem('seededLetterGridTimerDuration', (15 * 60).toString()); // 15 minutes
+            }
+
+            // Grid size logic
+            if (newMode === 'challenging') {
+                localStorage.setItem(LOCAL_STORAGE_GRID_SIZE_KEY, '40');
+            } else if (newMode === 'relaxed') {
+                localStorage.setItem(LOCAL_STORAGE_GRID_SIZE_KEY, '50');
+            } else {
+                localStorage.removeItem(LOCAL_STORAGE_GRID_SIZE_KEY);
+            }
+
+            // Clear daily progress and stats
+            localStorage.removeItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
+
+            foundWords.clear();
+            permanentlyHighlightedCells.clear();
+            foundWordPaths = [];
+            totalWordsFound = 0;
+            longestWordLength = 0;
+            dailyLongestWordFound = '';
+
+            // Ensure timer is reset for new mode
+            localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+
+            // Set timeRemaining and update timer display immediately for visual feedback
+            if (newMode === 'challenging') {
+                timeRemaining = 10 * 60;
+                gameTimerDisplay.style.display = ""; // Show timer
+                updateTimerDisplay();
+            } else if (newMode === 'relaxed') {
+                timeRemaining = 20 * 60;
+                gameTimerDisplay.style.display = "none"; // Hide timer
+            } else {
+                timeRemaining = 15 * 60;
+                gameTimerDisplay.style.display = ""; // Show timer
+                updateTimerDisplay();
+            }
+
+            setTimeout(() => {
+                location.reload();
+            }, 50);
+};
+        confirmNoButton.onclick = () => {
+            // Revert the radio button selection to the currently saved mode
+            const radioToRevert = document.getElementById(`mode-${currentGameMode}`);
+            if (radioToRevert) {
+                radioToRevert.checked = true;
+            }
+            hideActiveModal();
+        };
+
+        showModal(confirmationModal);
+    }
     // Centering the grid within the scrollable panel
     function centerGridInView(cellSize, gap) {
         // The requestAnimationFrame was causing a timing issue where the zoom animation
         // would start before the grid was scrolled into position.
         // Making this call synchronous for the initial load ensures correct ordering.
         if (gridPanel && cellSize > 0) {
-            // Center on the 21st row and column (index 20)
-            const targetRow = 20;
-            const targetCol = 20;
+            // Center on the middle row and column for any grid size
+            const targetRow = Math.floor(GRID_SIZE / 2);
+            const targetCol = Math.floor(GRID_SIZE / 2);
 
             // Calculate the center coordinate of the target cell, accounting for gaps
             const cellCenterX = (targetCol * (cellSize + gap)) + (cellSize / 2);
@@ -1299,6 +1614,7 @@ function renderGrid(grid) {
     currentCellSize = cellSize;
 
     // Set transform origin and grid template as before
+   
     const targetRow = 20, targetCol = 20;
     const originX = (targetCol * (cellSize + GRID_GAP)) + (cellSize / 2);
     const originY = (targetRow * (cellSize + GRID_GAP)) + (cellSize / 2);
@@ -1410,13 +1726,11 @@ function renderGrid(grid) {
             if (e.button !== 0) return; 
             
             isMouseDownOnGridPanel = true;
-            gridPanel.classList.add('grabbing');
-            startMouseX = e.pageX; 
+            startMouseX = e.pageX;
             startMouseY = e.pageY;
-            startScrollLeft = gridPanel.scrollLeft; // Read scroll from gridPanel
-            startScrollTop = gridPanel.scrollTop;   // Read scroll from gridPanel
-            
-            isDraggingGrid = false; 
+            startScrollLeft = gridPanel.scrollLeft;
+            startScrollTop = gridPanel.scrollTop;
+            gridPanel.classList.add('grabbing'); // Optional: show grabbing cursor
             console.log("Drag logic: Mouse Down initiated on gridPanel.");
         });
 
@@ -1428,6 +1742,8 @@ function renderGrid(grid) {
             const dy = e.pageY - startMouseY;
 
             // Determine if movement exceeds the drag threshold
+           
+
             if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
                 isDraggingGrid = true; 
             }
@@ -1441,6 +1757,7 @@ function renderGrid(grid) {
             if (!isMouseDownOnGridPanel) return; 
             isMouseDownOnGridPanel = false;
             gridPanel.classList.remove('grabbing');
+            isDraggingGrid = false; // <-- Reset drag flag here
             console.log("Drag logic: Mouse Up. isDraggingGrid:", isDraggingGrid);
         });
 
@@ -1448,6 +1765,7 @@ function renderGrid(grid) {
             if (isMouseDownOnGridPanel && e.target.nodeName === 'HTML') { 
                 isMouseDownOnGridPanel = false;
                 gridPanel.classList.remove('grabbing');
+                isDraggingGrid = false; // <-- Reset drag flag here
                 console.log("Drag logic: Mouse left document while dragging.");
             }
         });
@@ -1575,7 +1893,7 @@ function renderGrid(grid) {
         e.preventDefault();
         updateStatsDisplay();
         // Ensure modal is in its default state when opened from the menu
-        if (statsModalTitle) statsModalTitle.textContent = 'Daily Stats';
+        if (statsModalTitle) statsModalTitle.textContent = 'Stats';
         statsModal.classList.remove('list-view');
         showModal(statsModal);
     });
@@ -1590,6 +1908,16 @@ function renderGrid(grid) {
         // Ensure the extra info text is hidden for a normal share
         if (shareModalInfo) {
             shareModalInfo.style.display = 'none';
+        }
+
+        // --- FIX: Always enable and show Facebook and Copy Link buttons ---
+        if (shareFacebookButton) {
+            shareFacebookButton.disabled = false;
+            shareFacebookButton.style.display = '';
+        }
+        if (copyShareLinkButton) {
+            copyShareLinkButton.disabled = false;
+            copyShareLinkButton.style.display = '';
         }
 
         shareTextPreview.innerHTML = getShareMessage(); // Use innerHTML for consistency
@@ -1650,31 +1978,54 @@ function renderGrid(grid) {
         });
     }
 
-    if (deleteDataButton) {
-        deleteDataButton.addEventListener('click', () => {
-            const isConfirmed = window.confirm("Are you sure you want to delete all your saved data? This action cannot be undone.");
-            if (isConfirmed) {
-                console.log("User confirmed data deletion. Clearing localStorage...");
-                // It's safer to remove specific keys than to use localStorage.clear()
-                // in case other scripts on the same domain use it.
-                localStorage.removeItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_DATE_SEED_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_THEME_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
-                localStorage.removeItem(LOCAL_STORAGE_RULES_SEEN_KEY);
-                
-                // Reload the page to apply the reset state
-                location.reload();
-            }
+    if (gameModeSelector) {
+        gameModeSelector.addEventListener('change', (event) => {
+            const newMode = event.target.value;
+            if (newMode === currentGameMode) return; // No change
+
+            // Remove this line so vignette does NOT update immediately:
+            // updateGameModeIndicator(newMode);
+
+            // Always clear the saved timer for today so the new mode's timer is used
+            localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+
+            // Always show the confirmation modal with the mode description
+            showGameModeChangeConfirmation(newMode);
         });
     }
+    if (deleteDataButton) {
+    deleteDataButton.addEventListener('click', () => {
+        const isConfirmed = window.confirm("Are you sure you want to delete all your saved data? This action cannot be undone.");
+        if (isConfirmed) {
+            console.log("User confirmed data deletion. Clearing localStorage...");
+            // Remove all relevant keys
+            localStorage.removeItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_DATE_SEED_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_LENGTH_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_GLOBAL_LONGEST_WORD_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_THEME_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_GRID_SIZE_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_RULES_SEEN_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_GAME_MODE_KEY);
+            localStorage.setItem('seededLetterGridTimerDuration', (15 * 60).toString()); // <-- Add this line
+
+            // Reset daily score to 0 and update display immediately
+            score = 0;
+            localStorage.setItem(LOCAL_STORAGE_CURRENT_SCORE_KEY, "0");
+            const scoreElement = document.getElementById('score-display');
+            if (scoreElement) scoreElement.textContent = "Score: 0";
+
+            // Reload the page to apply the reset state
+            location.reload();
+        }
+    });
+}
 
     shareXButton.addEventListener('click', () => {
         const shareData = generateShareText();
@@ -1682,88 +2033,81 @@ function renderGrid(grid) {
         openShareWindow(twitterUrl);
     });
     
-    shareFacebookButton.addEventListener('click', () => {
-        const shareData = generateShareText();
-        const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
+    // FIX: Ensure Facebook and Copy Link buttons work
+    if (shareFacebookButton) {
+        shareFacebookButton.addEventListener('click', () => {
+            const shareData = generateShareText();
+            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
 
-        // Use the modern Web Share API on supported devices (like iOS)
-        if (navigator.share) {
-            // Also copy the text to the clipboard for convenience.
-            navigator.clipboard.writeText(shareData.text).then(() => {
-                // On successful copy, show a confirmation message.
-                showNotificationModal(
-                    "Score Copied!", 
-                    "Your score has been copied. The share dialog will open shortly."
-                );
-            }).catch(err => {
-                // If copy fails, show a slightly different message.
-                console.error('Clipboard copy failed:', err);
-                showNotificationModal(
-                    "Preparing Share", 
-                    "Your score is being prepared. The share dialog will open shortly."
-                );
-            }).finally(() => {
-                // Regardless of copy success, proceed with the share sheet after a delay.
-                setTimeout(() => {
-                    hideActiveModal(); // Hides the notification, share modal becomes visible again.
+            if (navigator.share) {
+                navigator.clipboard.writeText(shareData.text).then(() => {
+                    showNotificationModal(
+                        "Score Copied!", 
+                        "Your score has been copied. The share dialog will open shortly."
+                    );
+                }).catch(err => {
+                    showNotificationModal(
+                        "Preparing Share", 
+                        "Your score is being prepared. The share dialog will open shortly."
+                    );
+                }).finally(() => {
+                    setTimeout(() => {
+                        hideActiveModal();
+                        navigator.share({
+                            title: 'SearchWord Game Score',
+                            text: shareData.text,
+                            url: shareData.url
+                        }).then(() => {
+                            hideAllModals();
+                        }).catch((error) => {
+                            if (error.name !== 'AbortError') {
+                                showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
+                            }
+                        });
+                    }, 2000);
+                });
+            } else {
+                navigator.clipboard.writeText(shareData.text).then(() => {
+                    showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
+                    setTimeout(() => {
+                        hideAllModals();
+                        openShareWindow(facebookUrl);
+                    }, 2000);
+                }).catch(err => {
+                    showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
+                    setTimeout(() => {
+                        hideAllModals();
+                        openShareWindow(facebookUrl);
+                    }, 2500);
+                });
+            }
+        });
+    }
 
-                    navigator.share({
-                        title: 'SearchWord Game Score',
-                        text: shareData.text,
-                        url: shareData.url
-                    }).then(() => {
-                        console.log('Shared successfully via Web Share API.');
-                        hideAllModals(); // Close the share modal on success.
-                    }).catch((error) => {
-                        if (error.name !== 'AbortError') {
-                            console.error('Error with Web Share API:', error);
-                            showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
-                        }
-                    });
-                }, 2000); // 2 second delay
-            });
-        } else {
-            // Fallback for desktop browsers that don't support the Web Share API
-            navigator.clipboard.writeText(shareData.text).then(() => {
-                showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
+    if (copyShareLinkButton) {
+        copyShareLinkButton.addEventListener('click', () => {
+            const shareData = generateShareText();
+            const fullTextToCopy = `${shareData.text} ${shareData.url}`;
+
+            navigator.clipboard.writeText(fullTextToCopy).then(() => {
+                const originalText = copyShareLinkText.textContent;
+                copyShareLinkText.textContent = 'Copied!';
+                copyShareLinkButton.disabled = true;
                 setTimeout(() => {
-                    hideAllModals();
-                    openShareWindow(facebookUrl);
+                    copyShareLinkText.textContent = originalText;
+                    copyShareLinkButton.disabled = false;
                 }, 2000);
             }).catch(err => {
-                console.error('Failed to copy text for Facebook share: ', err);
-                showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
+                const originalText = copyShareLinkText.textContent;
+                copyShareLinkText.textContent = 'Failed!';
+                copyShareLinkButton.disabled = true;
                 setTimeout(() => {
-                    hideAllModals();
-                    openShareWindow(facebookUrl);
-                }, 2500);
+                    copyShareLinkText.textContent = originalText;
+                    copyShareLinkButton.disabled = false;
+                }, 2000);
             });
-        }
-    });
-
-    copyShareLinkButton.addEventListener('click', () => {
-        const shareData = generateShareText();
-        const fullTextToCopy = `${shareData.text} ${shareData.url}`;
-
-        navigator.clipboard.writeText(fullTextToCopy).then(() => {
-        const originalText = copyShareLinkText.textContent;
-        copyShareLinkText.textContent = 'Copied!';
-            copyShareLinkButton.disabled = true;
-            setTimeout(() => {
-            copyShareLinkText.textContent = originalText;
-                copyShareLinkButton.disabled = false;
-            }, 2000);
-    }).catch(err => {
-        console.error('Failed to copy text: ', err);
-        const originalText = copyShareLinkText.textContent;
-        copyShareLinkText.textContent = 'Failed!';
-        copyShareLinkButton.disabled = true; // Keep it disabled briefly
-        setTimeout(() => {
-            copyShareLinkText.textContent = originalText;
-            copyShareLinkButton.disabled = false;
-        }, 2000);
-    });
-    });
+        });
+    }
 
     modalOverlay.addEventListener('click', (e) => {
         if (e.target === modalOverlay) {
@@ -1787,17 +2131,63 @@ function renderGrid(grid) {
         modalWordList.addEventListener('click', handleWordListClick);
     }
 
-    // --- Initial Setup ---
-    loadTheme();
-    loadEyeComfortMode();
-    currentGrid = generateGrid();
-    const isNewGame = !loadGameState(); // Check if it's a new game for the day.
-    updateStatsDisplay();
-    renderGrid(currentGrid); 
-    updateCurrentWordDisplay();
-    initGridDragScrolling();
+function setTimerDurationForMode(mode) {
+    // Check if a custom timer duration is set in localStorage (for mode change)
+    const customDuration = localStorage.getItem('seededLetterGridTimerDuration');
+    if (customDuration && !isNaN(parseInt(customDuration, 10))) {
+        TIMER_DURATION = parseInt(customDuration, 10);
+    } else {
+        switch (mode) {
+            case 'relaxed':
+                TIMER_DURATION = 20 * 60; // 20 minutes
+                break;
+            case 'challenging':
+                TIMER_DURATION = 10 * 60; // 10 minutes
+                break;
+            case 'standard':
+            default:
+                TIMER_DURATION = 15 * 60; // 15 minutes
+        }
+    }
+    debugLog(`Timer duration set to ${TIMER_DURATION / 60} minutes for ${mode} mode.`);
+}
 
-    // Start the timer after everything is loaded
+    function initializeTimer() {
+        const savedMode = localStorage.getItem(LOCAL_STORAGE_GAME_MODE_KEY) || 'standard';
+        setTimerDurationForMode(savedMode);
+        // Only use saved time if it's valid and positive
+        const savedTime = localStorage.getItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+        if (savedTime !== null && !isNaN(parseInt(savedTime, 10)) && parseInt(savedTime, 10) > 0) {
+            timeRemaining = parseInt(savedTime, 10);
+        } else {
+            timeRemaining = TIMER_DURATION;
+        }
+        isTimeUp = (timeRemaining <= 0);
+        debugLog(`Timer initialized for ${savedMode} mode with ${timeRemaining} seconds.`);
+    }
+
+    // --- Initial Setup ---
+loadTheme();
+loadEyeComfortMode();
+loadGameMode();
+
+// Hide timer if mode is relaxed
+if (currentGameMode === 'relaxed' && gameTimerDisplay) {
+    gameTimerDisplay.style.display = "none";
+} else if (gameTimerDisplay) {
+    gameTimerDisplay.style.display = "";
+}
+
+const isNewGame = !loadGameState(); // Only loads words, grid, etc.
+currentGrid = generateGrid();
+updateStatsDisplay();
+renderGrid(currentGrid);
+updateCurrentWordDisplay();
+initGridDragScrolling();
+initializeTimer(); // Only here!
+
+// Start the timer after everything is loaded
+if (currentGameMode !== 'relaxed') {
     if (!isTimeUp) {
         updateTimerDisplay(); // Show initial time
         if (!document.hidden) {
@@ -1806,6 +2196,7 @@ function renderGrid(grid) {
     } else {
         handleTimeUp(); // Ensure UI is in "time up" state
     }
+}
     
     // Use debounced handler for resize
     window.addEventListener('resize', debounce(handleResize, 150));
@@ -1837,4 +2228,36 @@ function renderGrid(grid) {
         // Set initial vignette state
         updateVignetteVisibility();
     });
+
+function updateGameModeIndicator(mode) {
+    const gridPanelWrapper = document.querySelector('.grid-panel-wrapper');
+    if (gridPanelWrapper) {
+        gridPanelWrapper.classList.remove('relaxed-glow', 'challenging-glow', 'standard-glow');
+        if (mode === 'relaxed') gridPanelWrapper.classList.add('relaxed-glow');
+        else if (mode === 'challenging') gridPanelWrapper.classList.add('challenging-glow');
+        else gridPanelWrapper.classList.add('standard-glow');
+    }
+
+    // Then update the indicator if present
+    const indicator = document.getElementById('game-mode-indicator');
+    if (!indicator) return;
+    indicator.textContent = 
+        mode === 'relaxed' ? 'Relaxed Mode' :
+        mode === 'challenging' ? 'Challenging Mode' :
+        'Standard Mode';
+    indicator.classList.remove('relaxed', 'challenging', 'standard');
+    indicator.classList.add(mode);
+    indicator.className = `mode-indicator ${mode}`;
+}
+
+// Call this after loading or changing the mode:
+updateGameModeIndicator(currentGameMode);
 });
+    indicator.classList.add(mode);
+    indicator.className = `mode-indicator ${mode}`;
+
+
+    // Call this after loading or changing the mode:
+    updateGameModeIndicator(currentGameMode);
+
+
