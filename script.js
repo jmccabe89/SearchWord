@@ -1178,7 +1178,7 @@ function getWordFromPath(path) {
         return `Just started today's SearchWord!`;
     }
 
-    return `I found ${numWords} ${wordOrWords}, scored ${highScore}, and my longest word was "${dailyLongestWordFound}" (${longestWordLength} letters) in today's ${modeLabel} SearchWord. Try to beat my daily score!`;
+    return `I found ${numWords} ${wordOrWords}, scored ${highScore}, and my longest word was "${dailyLongestWordFound}" (${longestWordLength} letters) in today's ${modeLabel} SearchWord.<br>Try to beat my daily score!`;
 }
 
     function generateShareText() {
@@ -1192,6 +1192,25 @@ function getWordFromPath(path) {
             url: gameUrl
         };
     }
+
+function getShareMessagePlain() {
+    const numWords = totalWordsFound;
+    const modeMap = {
+        relaxed: "Relaxed",
+        challenging: "Challenging",
+        standard: "Standard"
+    };
+    const modeLabel = modeMap[currentGameMode] || "Standard";
+    const scoreValue = score || 0;
+    const highScore = scoreValue;
+    const wordOrWords = numWords === 1 ? 'word' : 'words';
+
+    if (numWords === 0) {
+        return `Just started today's SearchWord!`;
+    }
+
+    return `I found ${numWords} ${wordOrWords}, scored ${highScore}, and my longest word was "${dailyLongestWordFound}" (${longestWordLength} letters) in today's ${modeLabel} SearchWord.\nTry to beat my daily score!`;
+}
     
     function openShareWindow(url) {
         const width = 600;
@@ -1355,28 +1374,32 @@ function getWordFromPath(path) {
 
         // Only reset daily progress if the date has changed (not on viewport/device change)
         if (savedDateSeed !== currentDateSeed) {
-            // Only clear daily progress, not global stats or settings
-            localStorage.removeItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
-            localStorage.removeItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
-            localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
-            localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
-            localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
-            localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
-            localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
-            localStorage.setItem(LOCAL_STORAGE_DATE_SEED_KEY, currentDateSeed);
+    // Only clear daily progress, not global stats or settings
+    localStorage.removeItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_TOTAL_WORDS_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_LONGEST_WORD_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_DAILY_LONGEST_WORD_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_FOUND_PATHS_KEY);
+    localStorage.setItem(LOCAL_STORAGE_DATE_SEED_KEY, currentDateSeed);
 
-            foundWords = new Set();
-            permanentlyHighlightedCells = new Set();
-            totalWordsFound = 0;
-            longestWordLength = 0;
-            dailyLongestWordFound = '';
-            foundWordPaths = [];
-            wordList.innerHTML = '';
-            if (modalWordList) {
-                modalWordList.innerHTML = '';
-            }
-            return false;
-        }
+    foundWords = new Set();
+    permanentlyHighlightedCells = new Set();
+    totalWordsFound = 0;
+    longestWordLength = 0;
+    dailyLongestWordFound = '';
+    foundWordPaths = [];
+    wordList.innerHTML = '';
+    if (modalWordList) {
+        modalWordList.innerHTML = '';
+    }
+    // --- Reset score to 0 and update display ---
+    score = 0;
+    localStorage.setItem(LOCAL_STORAGE_CURRENT_SCORE_KEY, "0");
+    updateScoreDisplay();
+    return false;
+}
 
         const savedFoundWords = localStorage.getItem(LOCAL_STORAGE_FOUND_WORDS_KEY);
         const savedHighlightedCells = localStorage.getItem(LOCAL_STORAGE_HIGHLIGHTED_CELLS_KEY);
@@ -2035,79 +2058,81 @@ function renderGrid(grid) {
     
     // FIX: Ensure Facebook and Copy Link buttons work
     if (shareFacebookButton) {
-        shareFacebookButton.addEventListener('click', () => {
-            const shareData = generateShareText();
-            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
+    shareFacebookButton.addEventListener('click', () => {
+        // Use plain text for copying to clipboard
+        const shareData = generateShareText();
+        const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
 
-            if (navigator.share) {
-                navigator.clipboard.writeText(shareData.text).then(() => {
-                    showNotificationModal(
-                        "Score Copied!", 
-                        "Your score has been copied. The share dialog will open shortly."
-                    );
-                }).catch(err => {
-                    showNotificationModal(
-                        "Preparing Share", 
-                        "Your score is being prepared. The share dialog will open shortly."
-                    );
-                }).finally(() => {
-                    setTimeout(() => {
-                        hideActiveModal();
-                        navigator.share({
-                            title: 'SearchWord Game Score',
-                            text: shareData.text,
-                            url: shareData.url
-                        }).then(() => {
-                            hideAllModals();
-                        }).catch((error) => {
-                            if (error.name !== 'AbortError') {
-                                showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
-                            }
-                        });
-                    }, 2000);
-                });
-            } else {
-                navigator.clipboard.writeText(shareData.text).then(() => {
-                    showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
-                    setTimeout(() => {
-                        hideAllModals();
-                        openShareWindow(facebookUrl);
-                    }, 2000);
-                }).catch(err => {
-                    showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
-                    setTimeout(() => {
-                        hideAllModals();
-                        openShareWindow(facebookUrl);
-                    }, 2500);
-                });
-            }
-        });
-    }
-
-    if (copyShareLinkButton) {
-        copyShareLinkButton.addEventListener('click', () => {
-            const shareData = generateShareText();
-            const fullTextToCopy = `${shareData.text} ${shareData.url}`;
-
-            navigator.clipboard.writeText(fullTextToCopy).then(() => {
-                const originalText = copyShareLinkText.textContent;
-                copyShareLinkText.textContent = 'Copied!';
-                copyShareLinkButton.disabled = true;
-                setTimeout(() => {
-                    copyShareLinkText.textContent = originalText;
-                    copyShareLinkButton.disabled = false;
-                }, 2000);
+        if (navigator.share) {
+            navigator.clipboard.writeText(getShareMessagePlain()).then(() => {
+                showNotificationModal(
+                    "Score Copied!", 
+                    "Your score has been copied. The share dialog will open shortly."
+                );
             }).catch(err => {
-                const originalText = copyShareLinkText.textContent;
-                copyShareLinkText.textContent = 'Failed!';
-                copyShareLinkButton.disabled = true;
+                showNotificationModal(
+                    "Preparing Share", 
+                    "Your score is being prepared. The share dialog will open shortly."
+                );
+            }).finally(() => {
                 setTimeout(() => {
-                    copyShareLinkText.textContent = originalText;
-                    copyShareLinkButton.disabled = false;
+                    hideActiveModal();
+                    navigator.share({
+                        title: 'SearchWord Game Score',
+                        text: getShareMessagePlain(),
+                        url: shareData.url
+                    }).then(() => {
+                        hideAllModals();
+                    }).catch((error) => {
+                        if (error.name !== 'AbortError') {
+                            showNotificationModal("Share Failed", "Could not open the share dialog. Please try again.");
+                        }
+                    });
                 }, 2000);
             });
+        } else {
+            navigator.clipboard.writeText(`${getShareMessagePlain()} ${shareData.url}`).then(() => {
+                showNotificationModal("Text Copied!", "Paste your score into the Facebook window when it appears.");
+                setTimeout(() => {
+                    hideAllModals();
+                    openShareWindow(facebookUrl);
+                }, 2000);
+            }).catch(err => {
+                showNotificationModal("Copy Failed", "Could not copy text automatically. Please try again or copy it manually.");
+                setTimeout(() => {
+                    hideAllModals();
+                    openShareWindow(facebookUrl);
+                }, 2500);
+            });
+        }
+    });
+}
+
+    if (copyShareLinkButton) {
+    copyShareLinkButton.addEventListener('click', () => {
+        const shareData = generateShareText();
+        // Use plain text for copying
+        const fullTextToCopy = `${getShareMessagePlain()} ${shareData.url}`;
+
+        navigator.clipboard.writeText(fullTextToCopy).then(() => {
+            const originalText = copyShareLinkText.textContent;
+            copyShareLinkText.textContent = 'Copied!';
+            copyShareLinkButton.disabled = true;
+            setTimeout(() => {
+                copyShareLinkText.textContent = originalText;
+                copyShareLinkButton.disabled = false;
+            }, 2000);
+        }).catch(err => {
+            const originalText = copyShareLinkText.textContent;
+            copyShareLinkText.textContent = 'Failed!';
+            copyShareLinkButton.disabled = true;
+            setTimeout(() => {
+                copyShareLinkText.textContent = originalText;
+                copyShareLinkButton.disabled = false;
+            }, 2000);
         });
-    }
+    });
+}
 
     modalOverlay.addEventListener('click', (e) => {
         if (e.target === modalOverlay) {
@@ -2253,11 +2278,4 @@ function updateGameModeIndicator(mode) {
 // Call this after loading or changing the mode:
 updateGameModeIndicator(currentGameMode);
 });
-    indicator.classList.add(mode);
-    indicator.className = `mode-indicator ${mode}`;
-
-
-    // Call this after loading or changing the mode:
-    updateGameModeIndicator(currentGameMode);
-
 

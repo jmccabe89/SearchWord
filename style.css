@@ -818,7 +818,7 @@ body.menu-open, body.modal-open {
 .longest-word {
     font-size: 1.4em !important;
     color: var(--accent-color);
-    margin-top: 15px;
+    margin-top: 10px;
     border-top: 0px solid var(--border-color);
     padding-top: 0px;
 }
@@ -1236,7 +1236,10 @@ input:checked + .slider:before { transform: translateX(26px); }
         flex-grow: 0; /* Do not grow; height is based on content */
         flex-shrink: 0; /* Do not shrink; respect content height */
         height: auto; /* Let content determine the height */
-        padding: 5px 10px; /* Reduce vertical padding to make content more compact */
+        padding: 0px 10px; /* Reduce vertical padding to make content more compact */overflow: visible !important; /* Prevent scrolling and scrollbars */
+    }
+    .side-panel::-webkit-scrollbar {
+        display: none; /* Hide scrollbar for WebKit browsers */
     }
 
     /* On mobile, hide the word list from the side panel for a cleaner UI */
@@ -1246,6 +1249,7 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     /* On mobile, remove extra spacing from the current word section to make it more compact */
     .side-panel .current-word-section {
+        margin-top: 10px;
         margin-bottom: 0;
         padding-bottom: 0;
         border-bottom: none;
@@ -1290,8 +1294,8 @@ input:checked + .slider:before { transform: translateX(26px); }
 
     .current-word-display {
         font-size: 1.4em;
-        height: 34px;
-        padding: 4px;
+        height: 44px;
+        padding: 0 10px;
     }
 
     .verify-button {
@@ -1523,6 +1527,15 @@ body.light-mode #score-display {
         border-radius: 8px;
         box-shadow: 0 1px 4px rgba(44,44,44,0.08);
     }
+}
+
+.longest-word,
+#global-highest-score-display {
+    color: var(--accent-color) !important;
+    font-size: 1.4em !important;
+    margin-top: 15px;
+    border-top: 0px solid var(--border-color);
+    padding-top: 0px;
 }
 
 /* No changes needed if you use class="longest-word" for the score display */
