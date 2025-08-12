@@ -659,6 +659,9 @@ function updateGlobalHighestScoreDisplay() {
         updateTimerDisplay();
         verifyButton.disabled = true; // Disable verification
 
+        // Save time up state
+        localStorage.setItem(LOCAL_STORAGE_TIME_REMAINING_KEY, "0");
+
         // Ensure the modal title and buttons are in their default state
         if (shareModalTitle) shareModalTitle.textContent = "Share Your Score";
         if (shareModalButtons) shareModalButtons.style.display = 'flex';
@@ -932,17 +935,25 @@ function getWordFromPath(path) {
         }
     }
 
+    let isVerifying = false;
+
     async function handleVerifyClick() {
-        if (isTimeUp) {
-            debugLog("Verification prevented: Time is up.");
+        if (isTimeUp || isVerifying) {
+            debugLog("Verification prevented: Time is up or already verifying.");
             return;
         }
+
+        isVerifying = true;
+        verifyButton.classList.add('verifying');
+        verifyButton.disabled = true;
 
         const word = currentWordPath.map(cell => cell.element.textContent).join('').toUpperCase();
 
         if (word.length === 0) {
             debugLog("No word formed to verify.");
             shakeElement(currentWordDisplay);
+            isVerifying = false;
+            verifyButton.disabled = false;
             return;
         }
 
@@ -950,6 +961,8 @@ function getWordFromPath(path) {
             debugLog("Word too short. Must be at least 3 letters.");
             shakeElement(currentWordDisplay);
             clearWordPath();
+            isVerifying = false;
+            verifyButton.disabled = false;
             return;
         }
 
@@ -957,12 +970,10 @@ function getWordFromPath(path) {
             debugLog(`Word "${word}" already found!`);
             shakeElement(currentWordDisplay);
             clearWordPath();
+            isVerifying = false;
+            verifyButton.disabled = false;
             return;
         }
-
-        verifyButton.classList.add('verifying');
-        verifyButton.disabled = true;
-
 
         let isValid = await checkWordWithAPI(word);
 
@@ -979,6 +990,7 @@ function getWordFromPath(path) {
 
         verifyButton.classList.remove('verifying');
         verifyButton.disabled = false;
+        isVerifying = false;
 
         // --- Track failed attempts for this word ---
         const FAILED_ATTEMPTS_KEY = 'seededLetterGridFailedAttempts';
@@ -2180,14 +2192,14 @@ function setTimerDurationForMode(mode) {
     function initializeTimer() {
         const savedMode = localStorage.getItem(LOCAL_STORAGE_GAME_MODE_KEY) || 'standard';
         setTimerDurationForMode(savedMode);
-        // Only use saved time if it's valid and positive
+        // Only use saved time if it's valid (including zero)
         const savedTime = localStorage.getItem(LOCAL_STORAGE_TIME_REMAINING_KEY);
-        if (savedTime !== null && !isNaN(parseInt(savedTime, 10)) && parseInt(savedTime, 10) > 0) {
+        if (savedTime !== null && !isNaN(parseInt(savedTime, 10))) {
             timeRemaining = parseInt(savedTime, 10);
         } else {
             timeRemaining = TIMER_DURATION;
         }
-        isTimeUp = (timeRemaining <= 0);
+        isTimeUp = (timeRemaining <= 0); // <-- always set this
         debugLog(`Timer initialized for ${savedMode} mode with ${timeRemaining} seconds.`);
     }
 
