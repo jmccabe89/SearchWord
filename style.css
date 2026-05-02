@@ -593,6 +593,22 @@ body.eye-comfort-mode:not(.light-mode) {
     transform: none;
 }
 
+/* --- Verifying State with Spinner --- */
+.verify-button.verifying {
+    color: transparent; /* Hide the checkmark */
+}
+
+.verify-button.verifying::before {
+    content: '';
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
 /* --- Shake Animation --- */
 .shake {
     animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
@@ -607,6 +623,15 @@ body.eye-comfort-mode:not(.light-mode) {
     30%, 70% { transform: translate3d(-4px, 0, 0); }
     40%, 60% { transform: translate3d(4px, 0, 0); }
     50% { transform: translate3d(-4px, 0, 0); }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Keyframe animation for the initial grid zoom effect */

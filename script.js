@@ -988,10 +988,6 @@ function getWordFromPath(path) {
             debugLog(`Word "${word}" accepted from local backup list.`);
         }
 
-        verifyButton.classList.remove('verifying');
-        verifyButton.disabled = false;
-        isVerifying = false;
-
         // --- Track failed attempts for this word ---
         const FAILED_ATTEMPTS_KEY = 'seededLetterGridFailedAttempts';
         let failedAttempts = JSON.parse(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '{}');
@@ -1022,6 +1018,10 @@ function getWordFromPath(path) {
                         `If you believe <b>${word}</b> is a valid English word, please <a href="mailto:sporadicallyintelligent@gmail.com?subject=SearchWord%20Backup%20Word%20Suggestion&body=Please%20add%20the%20word%20${encodeURIComponent(word)}%20to%20the%20backup%20list." target="_blank" rel="noopener">email the developer</a> and it may be added to the backup list!`
                     );
                 }
+                // Re-enable button after rejection
+                verifyButton.classList.remove('verifying');
+                verifyButton.disabled = false;
+                isVerifying = false;
             }, 500);
             return;
         }
@@ -1040,6 +1040,10 @@ function getWordFromPath(path) {
                 console.log(`Word "${word}" is inappropriate and was rejected.`);
                 showNotificationModal("Word Rejected", "This word is not permitted in the game.");
                 clearWordPath();
+                // Re-enable button after rejection
+                verifyButton.classList.remove('verifying');
+                verifyButton.disabled = false;
+                isVerifying = false;
                 return; // Stop processing
             }
 
@@ -1084,6 +1088,10 @@ function getWordFromPath(path) {
             setTimeout(() => {
                 currentWordDisplay.classList.remove('success');
                 // clearWordPath(); // Already called above, so this is not needed
+                // Re-enable button after successful word addition
+                verifyButton.classList.remove('verifying');
+                verifyButton.disabled = false;
+                isVerifying = false;
             }, 500); // Keep success color for 500ms
         } else {
             console.log(`Word "${word}" is not a valid word.`);
