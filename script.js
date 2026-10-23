@@ -310,6 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isTimeUp = false;
 
     const DICTIONARY_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
+    const DICTIONARY_FALLBACK_API_URL = 'https://api.datamuse.com/words?sp=';
 
     // --- Local Storage Keys ---
     const LOCAL_STORAGE_FOUND_WORDS_KEY = 'seededLetterGridFoundWords';
@@ -917,22 +918,54 @@ function getWordFromPath(path) {
         }
     }
 
+    const LOCAL_STORAGE_VALID_WORDS_CACHE_KEY = 'seededLetterGridValidWordsCache';
+    let validWordsCache = getSetFromLocalStorage(LOCAL_STORAGE_VALID_WORDS_CACHE_KEY);
+
     async function checkWordWithAPI(word) {
-        try {
-            const response = await fetch(`${DICTIONARY_API_URL}${word}`);
-            if (response.ok) {
-                const data = await response.json();
-                return Array.isArray(data) && data.length > 0 && data[0].word.toLowerCase() === word.toLowerCase();
-            } else if (response.status === 404) {
-                return false; 
-            } else {
-                console.error(`API Error: ${response.status} - ${response.statusText}`);
-                return false;
-            }
-        } catch (error) {
-            console.error('Network or API request failed:', error);
-            return false;
+        const upperWord = word.toUpperCase();
+
+        // Check cache first
+        if (validWordsCache.has(upperWord)) {
+            return true;
         }
+
+        const wordParam = encodeURIComponent(word.trim());
+        const lookupUrls = [
+            `${DICTIONARY_API_URL}${wordParam}`,
+            `${DICTIONARY_FALLBACK_API_URL}${wordParam}&md=p`
+        ];
+
+        for (const url of lookupUrls) {
+            try {
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) {
+                    continue;
+                }
+
+                const data = await response.json();
+
+                if (url.includes('datamuse.com')) {
+                    const isValid = Array.isArray(data) && data.some(item => item.word && item.word.toLowerCase() === word.toLowerCase());
+                    if (isValid) {
+                        validWordsCache.add(upperWord);
+                        setToLocalStorage(LOCAL_STORAGE_VALID_WORDS_CACHE_KEY, validWordsCache);
+                        return true;
+                    }
+                    continue;
+                }
+
+                const isValid = Array.isArray(data) && data.length > 0 && data[0].word.toLowerCase() === word.toLowerCase();
+                if (isValid) {
+                    validWordsCache.add(upperWord);
+                    setToLocalStorage(LOCAL_STORAGE_VALID_WORDS_CACHE_KEY, validWordsCache);
+                    return true;
+                }
+            } catch (error) {
+                console.warn(`Dictionary lookup failed for ${word} at ${url}:`, error);
+            }
+        }
+
+        return false;
     }
 
     let isVerifying = false;
@@ -943,6 +976,7 @@ function getWordFromPath(path) {
             return;
         }
 
+        console.time('totalVerifyTime');
         isVerifying = true;
         verifyButton.classList.add('verifying');
         verifyButton.disabled = true;
@@ -954,6 +988,7 @@ function getWordFromPath(path) {
             shakeElement(currentWordDisplay);
             isVerifying = false;
             verifyButton.disabled = false;
+            console.timeEnd('totalVerifyTime');
             return;
         }
 
@@ -963,6 +998,7 @@ function getWordFromPath(path) {
             clearWordPath();
             isVerifying = false;
             verifyButton.disabled = false;
+            console.timeEnd('totalVerifyTime');
             return;
         }
 
@@ -972,10 +1008,13 @@ function getWordFromPath(path) {
             clearWordPath();
             isVerifying = false;
             verifyButton.disabled = false;
+            console.timeEnd('totalVerifyTime');
             return;
         }
 
+        console.time('apiCheckTime');
         let isValid = await checkWordWithAPI(word);
+        console.timeEnd('apiCheckTime');
 
         // If not valid by API, check global backup list
         if (!isValid && globalBackupWordList.has(word)) {
@@ -1023,6 +1062,7 @@ function getWordFromPath(path) {
                 verifyButton.disabled = false;
                 isVerifying = false;
             }, 500);
+            console.timeEnd('totalVerifyTime');
             return;
         }
         // Reset consecutive fail tracking on success
@@ -1034,8 +1074,10 @@ function getWordFromPath(path) {
             localStorage.setItem(FAILED_ATTEMPTS_KEY, JSON.stringify(failedAttempts));
         }
         if (isValid) {
+            console.time('profanityCheckTime');
             // New API-based check for inappropriate words
             const isProfane = await isWordInappropriate(word);
+            console.timeEnd('profanityCheckTime');
             if (isProfane) {
                 console.log(`Word "${word}" is inappropriate and was rejected.`);
                 showNotificationModal("Word Rejected", "This word is not permitted in the game.");
@@ -1044,6 +1086,7 @@ function getWordFromPath(path) {
                 verifyButton.classList.remove('verifying');
                 verifyButton.disabled = false;
                 isVerifying = false;
+                console.timeEnd('totalVerifyTime');
                 return; // Stop processing
             }
 
@@ -1092,6 +1135,7 @@ function getWordFromPath(path) {
                 verifyButton.classList.remove('verifying');
                 verifyButton.disabled = false;
                 isVerifying = false;
+                console.timeEnd('totalVerifyTime');
             }, 500); // Keep success color for 500ms
         } else {
             console.log(`Word "${word}" is not a valid word.`);
@@ -1101,6 +1145,7 @@ function getWordFromPath(path) {
             setTimeout(() => {
                 currentWordDisplay.classList.remove('error');
                 clearWordPath();
+                console.timeEnd('totalVerifyTime');
             }, 500);
         }
     }
@@ -1124,35 +1169,61 @@ function getWordFromPath(path) {
         // 1. Show modal with loading state
         definitionWordDisplay.textContent = word;
         definitionPhoneticDisplay.textContent = '';
-        definitionMeaningsContainer.innerHTML = ''; // Clear previous content
-        definitionMeaningsContainer.classList.add('loading'); // Show loading text
+        definitionMeaningsContainer.innerHTML = '';
+        definitionMeaningsContainer.classList.add('loading');
         showModal(definitionModal);
-    
+
+        const lookupUrls = [
+            `${DICTIONARY_API_URL}${encodeURIComponent(word)}`,
+            `${DICTIONARY_FALLBACK_API_URL}${encodeURIComponent(word)}&md=p`
+        ];
+
         try {
-            const response = await fetch(`${DICTIONARY_API_URL}${word}`);
-            definitionMeaningsContainer.classList.remove('loading'); // Hide loading text
-    
-            if (!response.ok) {
-                if (response.status === 404) {
-                    definitionMeaningsContainer.innerHTML = `<p>No definition found for "${word}".</p>`;
-                } else {
-                    definitionMeaningsContainer.innerHTML = `<p>Error fetching definition. Please try again later.</p>`;
+            let data = null;
+            let source = null;
+
+            for (const url of lookupUrls) {
+                try {
+                    const response = await fetch(url, { cache: 'no-store' });
+                    if (!response.ok) continue;
+
+                    data = await response.json();
+                    source = url;
+                    break;
+                } catch (error) {
+                    console.warn(`Definition lookup failed for ${word} at ${url}:`, error);
                 }
+            }
+
+            definitionMeaningsContainer.classList.remove('loading');
+
+            if (!data) {
+                definitionMeaningsContainer.innerHTML = `<p>Could not load a definition for "${word}" right now. The dictionary service may be unavailable.</p>`;
                 return;
             }
-    
-            const data = await response.json();
-            
-            // 2. Parse and display data
-            const entry = data[0]; // API returns an array, take the first result
-            
-            // Find the phonetic text
+
+            // Datamuse returns word matches instead of definitions, so show a lightweight fallback instead of crashing.
+            if (source && source.includes('datamuse.com')) {
+                const exactMatch = Array.isArray(data) && data.some(item => item.word && item.word.toLowerCase() === word.toLowerCase());
+                if (exactMatch) {
+                    definitionMeaningsContainer.innerHTML = `<p>"${word}" was found in the word list, but no definition service is available at the moment.</p>`;
+                    return;
+                }
+                definitionMeaningsContainer.innerHTML = `<p>No definition found for "${word}".</p>`;
+                return;
+            }
+
+            const entry = Array.isArray(data) ? data[0] : null;
+            if (!entry) {
+                definitionMeaningsContainer.innerHTML = `<p>No definition found for "${word}".</p>`;
+                return;
+            }
+
             const phonetic = entry.phonetics?.find(p => p.text)?.text || '';
             definitionPhoneticDisplay.textContent = phonetic;
-    
-            // Build the meanings HTML
-            const meaningsHtml = entry.meanings.map(meaning => {
-                const definitionsHtml = meaning.definitions.map(def => {
+
+            const meaningsHtml = (entry.meanings || []).map(meaning => {
+                const definitionsHtml = (meaning.definitions || []).map(def => {
                     const example = def.example ? `<p class="definition-example">"${def.example}"</p>` : '';
                     return `
                         <div class="definition-item">
@@ -1161,17 +1232,17 @@ function getWordFromPath(path) {
                         </div>
                     `;
                 }).join('');
-    
+
                 return `
                     <div class="meaning-block">
-                        <h3 class="part-of-speech">${meaning.partOfSpeech}</h3>
+                        <h3 class="part-of-speech">${meaning.partOfSpeech || 'Definition'}</h3>
                         ${definitionsHtml}
                     </div>
                 `;
             }).join('');
-    
-            definitionMeaningsContainer.innerHTML = meaningsHtml;
-    
+
+            definitionMeaningsContainer.innerHTML = meaningsHtml || `<p>No definition found for "${word}".</p>`;
+
         } catch (error) {
             console.error('Error fetching definition:', error);
             definitionMeaningsContainer.classList.remove('loading');
